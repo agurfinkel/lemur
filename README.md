@@ -204,3 +204,20 @@ Contributions welcome — open an issue or PR.
 
 MIT — see [`LICENSE`](LICENSE).
 
+
+### Saved Z3 run reports
+
+```sh
+uv run lemur run-report out/default_s0
+uv run lemur run-report out/default_s0 --json --summary
+uv run lemur run-report out/default_s0 --json
+uv run lemur run-report --agent
+```
+
+Combine sweep stdout/statistics, verbose stderr (`--verbosity 10`), and optional
+traces to inspect preprocessing and search. Reports distinguish missing counters
+from absent activity and retain source lines for each recognized verbose record.
+
+Run reports default to a human-readable summary. `--json --summary` provides
+a compact structured summary for agents. `--json` (also `-f json`) returns the
+full structured evidence, including all progress records and raw lines.

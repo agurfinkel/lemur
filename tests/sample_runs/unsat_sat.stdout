@@ -1,0 +1,32 @@
+unsat
+(:elim-unconstrained      139
+ :max-memory              196.55
+ :memory                  58.89
+ :num-allocs              2311880114
+ :rlimit-count            10280573
+ :sat-backjumps           11589
+ :sat-conflicts           11590
+ :sat-decisions           25705
+ :sat-del-clause          313965
+ :sat-elim-bool-vars-res  26989
+ :sat-elim-clauses        57884
+ :sat-elim-literals       45568
+ :sat-minimized-lits      92710
+ :sat-mk-clause-2ary      250283
+ :sat-mk-clause-3ary      62516
+ :sat-mk-clause-nary      263806
+ :sat-mk-var              120048
+ :sat-probing-assigned    12673
+ :sat-propagations-2ary   4486880
+ :sat-propagations-nary   3032982
+ :sat-restarts            1009
+ :sat-scc-elim-binary     9
+ :sat-scc-elim-vars       8
+ :sat-subs-resolution     195
+ :sat-subs-resolution-dyn 2244
+ :sat-subsumed            10942
+ :sat-units               81896
+ :solve-eqs-elim-vars     15
+ :solve-eqs-steps         15
+ :time                    3.05
+ :total-time              3.07)
