@@ -5,6 +5,7 @@ import sys
 
 from lemur.cli import (
     agent_help,
+    export,
     nla,
     search,
     split_status,
@@ -35,6 +36,7 @@ def main():
     )
     sub = parser.add_subparsers(dest="command")
 
+    export.register(sub)
     sweep.register(sub)
     stats.register(sub)
     nla.register(sub)

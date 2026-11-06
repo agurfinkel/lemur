@@ -614,6 +614,82 @@ lemur nla TRACE
     lemur search                           grep / filter the same trace.
     lemur stats                            tag/function aggregates.
 """,
+    "export": r"""lemur export TRACE [-o EVENTS.jsonl] [--recognizer bv] [--format jsonl]
+
+  purpose: preserve a .z3-trace as an ordered JSONL event stream. Query it
+  with jq/Python; layer domain recognizers over it. No Z3 Python dependency.
+  TRACE=- reads stdin; output defaults to stdout. --agent needs no TRACE.
+
+  schema v1:
+    kind=trace: seq, tag, function, source_file/source_line, complete,
+                span, text; incomplete records have reason=eof|next-header.
+    kind=raw: seq, span, text. Unframed text has no guessed tag (STRACE
+              does not carry one). Blank lines are also preserved.
+    span: byte_start/byte_end (zero-based, end exclusive), line_start/
+          line_end (one-based, inclusive) in the original trace.
+    text: exact input including framing/newlines, JSON escaped. Surrogate
+          escapes preserve invalid UTF-8 bytes. No truncation or humanization.
+    seq: one-based, includes raw fragments, local to this input file.
+    Memory: one block or contiguous unframed run; no whole-file load.
+
+  --recognizer bv adds kind=recognition records, with recognizer/version,
+  event_ids, and data. Original records pass through unchanged. v1 knows:
+    bitblast_application: operator printed by bit_blaster/reduce_app
+    bv_internalize: expr_id and printed expression from theory_bv.cpp
+    sat_clause: learned|aux role and literal text at mk_clause_core
+    sat_decision: decision level and literal text
+  Recognition is conservative, source-site/body-shape dependent, and skips
+  incomplete events. No match means unknown, not absence of solver activity.
+  Printed expressions need not be valid SMT2; IDs are local to a solver run.
+  Clause records are creation attempts BEFORE simplification, not retained
+  clause counts. Bit-blaster events are visits, not cost or unique terms.
+
+  examples (run from the Lemur checkout; jq is optional):
+    uv run lemur export .z3-trace -o events.jsonl
+    uv run lemur export .z3-trace --recognizer bv -o annotated.jsonl
+    jq -c 'select(.kind == "trace" and .tag == "bv")' events.jsonl
+    jq -c 'select(.kind == "recognition") | .data' annotated.jsonl
+    jq -r 'select(.seq == 12) | .text' events.jsonl
+    # Recover exact input bytes, including invalid UTF-8 and final fragments:
+    python -c 'import json,sys
+for line in sys.stdin:
+    r = json.loads(line)
+    if r["kind"] in ("trace", "raw"):
+        sys.stdout.buffer.write(r["text"].encode("utf-8", "surrogateescape"))' < annotated.jsonl > recovered.trace
+
+  Sea-MLIR / BV exploration (set SEA_MLIR, SEA_VC, Z3 to your checkouts/tools):
+    # stdout is SMT2; diagnostics stay on stderr. Keep the exported query.
+    "$SEA_VC" "$SEA_MLIR/test/VC/mul-overflow.mlir" --smt2 > query.smt2
+    # Or export the larger application case; its assumptions remain in force:
+    "$SEA_VC" "$SEA_MLIR/test/VC/seam/Inputs/nki-scatter-K4-int8.mlir" --lower --seam --smt2 > scatter.smt2
+    # Every capture needs its own working directory: Z3 writes .z3-trace there.
+    mkdir -p capture
+    cp query.smt2 capture/
+    (cd capture && "$Z3" -version > solver-version.txt && "$Z3" -T:5 -tr:before_bit_blaster -tr:after_bit_blaster -tr:bit_blaster -tr:sat_decide -tr:sat query.smt2 > result.txt)
+    uv run lemur export capture/.z3-trace --recognizer bv -o capture/events.jsonl
+
+  choosing tags (trace-enabled Z3 required):
+    before_bit_blaster / after_bit_blaster: goal snapshots; useful baseline.
+    bit_blaster: applications visited during blasting; can be very verbose.
+    sat_decide: decisions in the SAT engine. sat: clauses plus much more.
+    bv: BV-theory internalization/propagation, especially SMT/array queries.
+    bv_eq / bv_bit_prop: selected SMT BV equality/bit propagation sites.
+  These cover different engines. If a pipeline never reaches a stage, its
+  tags stay silent. SMT decide/pop_scope tags differ from SAT sat_decide.
+  Trace timeouts and volume are instrumented runs, not solver benchmarks.
+  Keep the solver version, command/options and original SMT2 beside the trace.
+
+  layering in Python:
+    from lemur.trace_recognizers import recognize, BVRecognizer
+    # Loaded JSONL evidence can go through a recognizer without reparsing text:
+    events = (json.loads(line) for line in source)
+    evidence = (r for r in events if r["kind"] in ("trace", "raw"))
+    annotated = recognize(evidence, [BVRecognizer()])
+  A recognizer implements feed(event) and finish(), yielding dictionaries with
+  event_ids and data. It may retain state and refer to multiple input events.
+  finish() can emit incomplete matches. Raw framing and existing NLA report
+  commands are independent; a future NLA recognizer can reuse their domain logic.
+""",
     "search": """\
 lemur search TRACE [PATTERN] [--tag RE] [--fn RE] [-n] [--entries]
   why: trace-aware grep. Z3 TRACE files have a block structure

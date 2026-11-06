@@ -63,6 +63,17 @@ title. Example: `fix(parser): handle empty trace blocks`.
 Use `uv run ruff check --fix .` and `uv run ruff format .` to apply safe
 lint fixes and formatting before committing.
 
+## Trace event export
+
+`uv run lemur export .z3-trace -o events.jsonl` preserves trace blocks and
+unframed/incomplete fragments as JSONL. Add `--recognizer bv` for optional
+BV/SAT annotations linked to the original event IDs. Existing NLA reports
+remain available.
+
+Run **`uv run lemur export --agent`** for the schema, querying examples,
+Sea-MLIR SMT2 generation and BV trace-tag selection. A small exported query
+is in `examples/sea-mlir/mul-overflow.smt2`.
+
 ## 🔧 Tools
 
 ### 🌀 lemur sweep — Seed/config sweep runner

@@ -36,6 +36,18 @@ config,seed,status,time_s
 baseline,0,sat,1.234
 ```
 
+## lemur export: lossless JSONL for agents
+
+```
+lemur export .z3-trace -o events.jsonl
+lemur export .z3-trace --recognizer bv -o annotated.jsonl
+lemur export --agent
+```
+
+Original records preserve every input byte. Optional recognizers add derived
+records referencing the original event IDs. Agent help includes Sea-MLIR BV
+capture commands, jq searches, and the recognizer pipeline API.
+
 ## lemur stats: analyze .z3-trace files
 
 ```
