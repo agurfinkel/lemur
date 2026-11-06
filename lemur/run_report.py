@@ -5,6 +5,7 @@ sat/sat_solver.cpp, and smt/smt_context_pp.cpp. Unknown shapes stay visible.
 Reported scope durations can overlap; SAT elapsed time is search-local.
 """
 
+import json
 import re
 import textwrap
 from collections import Counter
@@ -163,7 +164,76 @@ def trace_summary(path):
     }
 
 
-def build_report(stdout=None, stderr=None, trace=None):
+def diagnose_termination(stdout, stderr, verdict, metadata=None):
+    """Report explicit diagnostics without guessing caps or process exit status."""
+    evidence = []
+    for stream, text in (("stdout", stdout), ("stderr", stderr)):
+        for line, raw in enumerate(text.splitlines(), 1):
+            token = raw.strip()
+            error = re.fullmatch(r'\(error\s+"(.*)"\)', token, re.IGNORECASE)
+            error_prefix = re.fullmatch(r"error:\s*(.+)", token, re.IGNORECASE)
+            message = error[1] if error else error_prefix[1] if error_prefix else None
+            if token.lower() in ("timeout", "timeout (process killed)"):
+                cause = "timeout"
+            elif (
+                message is not None and "out of memory" in message.lower()
+            ) or token.lower() == "out of memory":
+                cause = "out_of_memory"
+            elif message is not None:
+                cause = "solver_error"
+            else:
+                continue
+            evidence.append(
+                {"cause": cause, "stream": stream, "line": line, "text": raw}
+            )
+    process = {}
+    if metadata is not None:
+        rc = metadata.get("returncode")
+        killed = metadata.get("timed_out_by_runner")
+        process = {"returncode": rc, "timed_out_by_runner": killed}
+        if killed is True and not any(e["cause"] == "timeout" for e in evidence):
+            evidence.append(
+                {
+                    "cause": "timeout",
+                    "stream": "run_metadata",
+                    "line": None,
+                    "text": "timed_out_by_runner=true",
+                }
+            )
+        if type(rc) is int and rc != 0 and not evidence:
+            evidence.append(
+                {
+                    "cause": "signal" if rc < 0 else "process_error",
+                    "stream": "run_metadata",
+                    "line": None,
+                    "text": f"returncode={rc}",
+                }
+            )
+        limits = {}
+        invocation = metadata.get("invocation")
+        argv = invocation.get("argv", []) if isinstance(invocation, dict) else []
+        for arg in argv if isinstance(argv, list) else []:
+            if not isinstance(arg, str):
+                continue
+            if arg.startswith("memory_max_size="):
+                limits["memory_max_size"] = arg.split("=", 1)[1]
+            elif arg.startswith("-T:"):
+                limits["timeout_s"] = arg[3:]
+        process["configured_limits"] = limits
+    causes = sorted({e["cause"] for e in evidence})
+    cause = (
+        causes[0]
+        if len(causes) == 1
+        else "multiple"
+        if causes
+        else "result_reported"
+        if verdict
+        else "unknown"
+    )
+    return {"cause": cause, "reported_causes": causes, "evidence": evidence, **process}
+
+
+def build_report(stdout=None, stderr=None, trace=None, run_metadata=None):
     """Build a report without assuming absent counters imply absent activity."""
     out = Path(stdout).read_text(errors="replace") if stdout else ""
     err = Path(stderr).read_text(errors="replace") if stderr else ""
@@ -173,6 +243,14 @@ def build_report(stdout=None, stderr=None, trace=None):
         if RESULT.fullmatch(line.strip())
     ]
     verdict = results[-1]["result"] if results else None
+    metadata = json.loads(Path(run_metadata).read_text()) if run_metadata else None
+    if metadata is not None and (
+        not isinstance(metadata, dict) or metadata.get("schema_version") != 1
+    ):
+        raise ValueError(
+            "unsupported run metadata: expected an object with schema_version=1"
+        )
+    termination = diagnose_termination(out, err, verdict, metadata)
     stats = parse_z3_stats(out)
     records = parse_verbose(err)
     engines = {}
@@ -197,7 +275,11 @@ def build_report(stdout=None, stderr=None, trace=None):
             state["search_observed"] = True
     warnings = []
     if not results:
-        warnings.append("No result token recorded; termination reason is unknown.")
+        warnings.append(
+            "No result token recorded; termination reason is unknown."
+            if termination["cause"] == "unknown"
+            else "No result token recorded; termination diagnostics are reported separately."
+        )
     if len(results) > 1:
         warnings.append(
             "Multiple result tokens: verdict is the last; evidence spans the whole log."
@@ -227,10 +309,13 @@ def build_report(stdout=None, stderr=None, trace=None):
             "stdout": str(stdout) if stdout else None,
             "stderr": str(stderr) if stderr else None,
             "trace": str(trace) if trace else None,
+            "run_metadata": str(run_metadata) if run_metadata else None,
         },
         "verdict": verdict,
+        "termination": termination,
         "results": results,
         "statistics": stats,
+        "run_metadata": metadata,
         "engines": engines,
         "verbose": records,
         "unparsed_verbose_records": unknown,
@@ -242,6 +327,7 @@ def build_report(stdout=None, stderr=None, trace=None):
             "smt_time": "SMT progress rows have no time column.",
             "memory": "Z3 tracked allocation MiB, not process RSS.",
             "counts": "Inventories may shrink; logs can span multiple checks. Missing means unknown, not zero.",
+            "termination": "Explicit diagnostics only; result_reported does not establish a clean process exit. Out of memory does not identify a configured cap versus host exhaustion.",
             "trace": "Event counts are not time measurements; tracing and expression printing perturb execution.",
         },
     }
@@ -295,6 +381,7 @@ def summarize_report(report):
         "detail": "summary",
         "inputs": report["inputs"],
         "verdict": report["verdict"],
+        "termination": report["termination"],
         "result_count": len(report["results"]),
         "engines": engines,
         "first_circuit": circuit,
@@ -343,6 +430,34 @@ def render_plain(report):
             lines.append(f"    {label}: {number(val)}")
 
     lines = [f"Result: {report['verdict'] or 'not recorded'}"]
+    termination = report["termination"]
+    if termination["cause"] not in ("result_reported", "unknown"):
+        labels = {
+            "out_of_memory": "out of memory",
+            "timeout": "timeout",
+            "solver_error": "solver error",
+            "multiple": "multiple diagnostics",
+            "signal": "terminated by signal",
+            "process_error": "process error",
+        }
+        lines.append(f"Termination: {labels[termination['cause']]}")
+        for item in termination["evidence"][:4]:
+            location = (
+                f"{item['stream']} line {item['line']}"
+                if item["line"] is not None
+                else item["stream"]
+            )
+            lines.append(
+                textwrap.fill(
+                    f"  {location}: {item['text'].strip()}",
+                    width=88,
+                    subsequent_indent="    ",
+                )
+            )
+    if "returncode" in termination:
+        lines.append(f"Process exit code: {termination['returncode']}")
+        for name, val in termination["configured_limits"].items():
+            lines.append(f"Configured {name}: {val}")
     for engine, data in report["engines"].items():
         observed = (
             "search observed" if data["search_observed"] else "tactic entry observed"

@@ -35,7 +35,9 @@ def register(subparsers):
         help="Print one line per match (default if pattern).",
     )
     mode.add_argument(
-        "--distinct", action="store_true", help="--list with duplicates removed."
+        "--distinct",
+        action="store_true",
+        help="List unique AST nodes (same as --list; shared subterms appear once).",
     )
     p.add_argument(
         "--apply",
@@ -172,16 +174,8 @@ def _do_run(z3, sgrep, goal, pat, mode, args) -> None:
             print(len(matches))
         return
 
-    if mode == "distinct":
-        seen_strs: set[str] = set()
-        unique: list = []
-        for m in matches:
-            ks = str(m.expr)
-            if ks in seen_strs:
-                continue
-            seen_strs.add(ks)
-            unique.append(m)
-        matches = unique
+    # find_matches deduplicates by AST identity within the goal's context.
+    # --list and --distinct both retain nodes with identical printed forms.
 
     if args.format == "json":
         for m in matches:

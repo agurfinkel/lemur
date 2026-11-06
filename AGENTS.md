@@ -23,7 +23,8 @@ lemur sweep BENCH.smt2 --seeds 0-15 --timeout 30 \
 
 - `--config` repeatable. `"name:"` for defaults
 - `--trace nla_solver,nra` enables CTRACE, saves .trace files
-- `--save DIR` saves .trace .stdout .stderr .z3log per run
+- `--save DIR` saves raw streams, optional traces, .run.json provenance and
+  content-addressed inputs; see `sweep --agent` for portable replay
 - `--verbosity N` z3 verbose level (default 2, stderr output)
 - `--z3-log` capture AST trace log (large). requires `--save`
 - `-f plain` for machine output. `-f json` for structured. default auto-detects tty
@@ -52,6 +53,8 @@ capture commands, jq searches, and the recognizer pipeline API.
 
 `lemur run-report out/default_s0` reads sweep artifacts; `-f json` retains all
 phase/progress records and source lines. Capture with `--stats --verbosity 10`.
+Termination diagnostics are separate from verdicts. Prefix discovery includes
+.run.json (exit code, timeout, limits); override with --run-metadata FILE.
 Use `lemur run-report --agent` for schema and timer/counter semantics.
 
 ## lemur stats: analyze .z3-trace files

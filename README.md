@@ -108,6 +108,12 @@ Output includes copy-pasteable z3 command lines for manual re-run
 | `config_sN.stdout` | z3 stdout |
 | `config_sN.stderr` | z3 stderr (includes `-v:2` verbose stats) |
 | `config_sN.z3log` | AST trace log (requires `--z3-log`) |
+| `config_sN.run.json` | Solver version, argv, exit code, timeout and replay metadata |
+| `inputs/<sha256>.smt2` | Exact input, shared across runs with identical bytes |
+
+Empty stdout/stderr files are retained. Generated split inputs survive cleanup.
+Move the whole save directory to preserve relative replay paths; use a fresh
+directory for each investigation. See `lemur sweep --agent` for replay commands.
 
 **Key options:**
 - `--z3 PATH` — z3 binary (default: `~/ag/z3/z3-edge/build/z3`)
@@ -221,3 +227,11 @@ from absent activity and retain source lines for each recognized verbose record.
 Run reports default to a human-readable summary. `--json --summary` provides
 a compact structured summary for agents. `--json` (also `-f json`) returns the
 full structured evidence, including all progress records and raw lines.
+
+`run-report` separates solver verdict from termination diagnostics, including
+explicit out-of-memory errors with source lines. It discovers `.run.json`
+metadata automatically; `--run-metadata FILE` selects it explicitly.
+Both `--json` and `--json --summary` include termination evidence.
+
+`sgrep --distinct` uses Z3 AST identity (the same DAG-unique traversal as
+`--list`). Use `--show kind` to avoid printing large expressions.

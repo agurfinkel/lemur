@@ -14,11 +14,17 @@ def register(subparsers):
     )
     agent_help.add_agent_flag(p, "run-report")
     p.add_argument(
-        "prefix", nargs="?", help="Sweep prefix: discovers .stdout/.stderr/.trace"
+        "prefix",
+        nargs="?",
+        help="Sweep prefix: discovers .stdout/.stderr/.trace/.run.json",
     )
     p.add_argument("--stdout", help="Explicit solver stdout file")
     p.add_argument("--stderr", help="Explicit verbose stderr file (capture with -v:10)")
     p.add_argument("--trace", help="Explicit text trace file")
+    p.add_argument(
+        "--run-metadata",
+        help="Sweep .run.json metadata (exit code, limits, provenance)",
+    )
     output = p.add_mutually_exclusive_group()
     output.add_argument("--format", "-f", choices=["plain", "json"], default="plain")
     output.add_argument(
@@ -44,6 +50,11 @@ def run(args):
             candidate = Path(f"{args.prefix}.{kind}")
             path = candidate if candidate.is_file() else None
         paths[kind] = path
+    metadata = args.run_metadata
+    if metadata is None and args.prefix:
+        candidate = Path(f"{args.prefix}.run.json")
+        metadata = candidate if candidate.is_file() else None
+    paths["run_metadata"] = metadata
     if not any(paths.values()):
         print(
             "Error: supply a prefix with saved files or --stdout/--stderr/--trace",
@@ -58,6 +69,6 @@ def run(args):
             if args.format == "json"
             else render_plain(report)
         )
-    except OSError as error:
+    except (OSError, ValueError) as error:
         print(f"Error: {error}", file=sys.stderr)
         raise SystemExit(1) from error
