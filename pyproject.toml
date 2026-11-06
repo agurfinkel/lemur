@@ -15,10 +15,12 @@ dependencies = [
     "rich>=13.0",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "pytest>=7.0",
 ]
+
+[project.optional-dependencies]
 split = [
     "z3-solver>=4.12",
 ]

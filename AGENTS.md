@@ -1,14 +1,17 @@
 # Lemur tools — for agents
 
-Z3 trace analysis. Single `lemur` command with subcommands. Install in venv.
+Z3 trace analysis. Single `lemur` command with subcommands. Manage the environment with uv.
 
 ## setup
 
 ```
-cd ~/ag/lemur && source .venv/bin/activate
+uv sync --locked
+uv run lemur --help
 ```
 
-If venv missing: `python3 -m venv .venv && source .venv/bin/activate && pip install -e .`
+Use `uv run lemur ...`, or activate `.venv` for the bare commands below.
+Tests: `uv run pytest`. Build: `uv build`. Optional integrations:
+`uv sync --locked --extra split`, `--extra plot`, or `--all-extras`.
 
 ## lemur sweep: run z3 across seeds/configs
 
@@ -67,7 +70,7 @@ tags: `nla_solver`, `nra`, `nlsat_*`. defined in `z3-edge/src/util/trace_tags.de
 
 ## typical agent workflow
 
-1. activate: `cd ~/ag/lemur && source .venv/bin/activate`
+1. sync from the checkout: `uv sync --locked`; use `uv run` or activate `.venv`
 2. sweep to find interesting seeds: `lemur sweep bench.smt2 --seeds 0-15 --timeout 30 -f plain`
 3. re-run interesting case with tracing: `lemur sweep bench.smt2 --seeds 3 --timeout 60 --trace nla_solver --save ./out`
 4. analyze trace: `lemur stats ./out/default_s3.trace`

@@ -13,7 +13,7 @@ def register(subparsers):
         'split',
         help='Auto-discover Boolean case-splits; emit leaf .smt2 files + plan.json',
         epilog='AI agents: use `lemur split --agent` for terse usage guide. '
-               'Requires the [split] extra: pip install \'lemur[split]\'.',
+               'Requires the [split] extra: run `uv sync --extra split` in the checkout.',
     )
     agent_help.add_agent_flag(p, 'split')
     p.add_argument('benchmark', help='SMT2 benchmark file')

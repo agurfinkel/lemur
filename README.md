@@ -8,12 +8,34 @@ text parsing.
 
 ## 🌴 Setup
 
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then
+run these commands from the checkout (Python 3.11 or newer):
+
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e '.[dev]'
+uv sync --locked
+uv run lemur --help
+uv run pytest
 ```
 
-This installs `lemur` as a command in the venv with subcommands `sweep` and `stats`.
+`uv sync` creates `.venv`, installs Lemur in editable mode, and includes the
+`dev` dependency group. The committed `uv.lock` pins dependencies; `--locked`
+checks that it agrees with `pyproject.toml`. After changing dependencies, run
+`uv lock` and commit both files.
+
+Use `uv run lemur ...` without activating an environment, or run
+`source .venv/bin/activate` to use the bare `lemur` commands below.
+Optional integrations remain extras:
+
+```bash
+uv sync --locked --extra split  # Z3 Python bindings
+uv sync --locked --extra plot   # Plotly and Matplotlib
+uv sync --locked --all-extras   # Both integrations
+uv build                       # Source distribution and wheel in dist/
+```
+
+Use `uv sync --locked --no-dev` for a runtime-only environment. The default
+installation does not require Z3's Python bindings; running solver sweeps still
+requires a separate Z3 executable.
 
 ## 🔧 Tools
 

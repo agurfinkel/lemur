@@ -266,7 +266,7 @@ def _require(import_target: str, extra: str = 'plot'):
     except ImportError as e:
         print(
             f"Error: {import_target} is required for this format. "
-            f"Install with: pip install 'lemur[{extra}]'",
+            f"From the Lemur checkout, install with: uv sync --extra {extra}",
             file=sys.stderr,
         )
         raise SystemExit(1) from e

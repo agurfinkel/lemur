@@ -49,7 +49,7 @@ def _import_z3():
     except ImportError:
         raise SystemExit(
             "lemur split requires the z3-solver Python package.\n"
-            "Install with:  pip install 'lemur[split]'"
+            "From the Lemur checkout, install with:  uv sync --extra split"
         )
 
 

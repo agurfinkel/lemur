@@ -10,11 +10,12 @@ triggers and code anchors).
 ## setup
 
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e '.[dev]'
+uv sync --locked
 ```
 
-This installs `lemur` as a command in the venv with subcommands `sweep` and `stats`.
+This creates `.venv`, installs the development dependencies, and installs `lemur`
+as a command with subcommands `sweep` and `stats`. Run commands with `uv run`,
+for example `uv run lemur --help` and `uv run pytest`.
 
 ## repo layout
 
@@ -61,7 +62,9 @@ AST trace log (`z3.log`): line-oriented `[event-type] data`. Enabled by `trace=t
 
 ## conventions
 
-- Use `python3 -m pip`, not `pip3` (multiple python envs on this machine)
+- Use `uv sync --locked` and `uv run` for the project environment.
+- After changing dependencies, run `uv lock` and commit `pyproject.toml` with `uv.lock`.
+- Build distributions with `uv build`; optional integrations use `--extra split` / `--extra plot`.
 - Output: Rich for TTY, plain when piped. All tools support `-f plain|json|rich`
 - Parsers are modular by tag. Adding a new CTRACE tag = new analyzer function in `stats.py`
 - Lemma analysis lives in `lemma.py` (parsing) and `report.py` (rendering)

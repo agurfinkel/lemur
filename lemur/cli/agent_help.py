@@ -690,7 +690,7 @@ lemur split BENCH.smt2 [--out DIR] [--max-leaves N]
        plus ITE guards), probe-scores each via simplification, greedy-
        nests up to log2(--max-leaves). emits a self-contained output dir
        with plan.json + leaf_*.smt2 files + a verbatim copy of the
-       source. optional [split] extra: pip install 'lemur[split]'.
+       source. optional [split] extra: run `uv sync --extra split` in the checkout.
 
   key flags:
     --out DIR                 default: <BENCH-stem>_children/ next to source
@@ -943,7 +943,7 @@ lemur n-over-time TRACE [TRACE ...] [--label LABEL ...]
        html/png, etc.).
 
   install (for plot formats):
-    pip install 'lemur[plot]'   # adds plotly, matplotlib
+    uv sync --extra plot        # adds plotly, matplotlib in this checkout
 
   typical session:
     # 1. capture traces with the four tags
