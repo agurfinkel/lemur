@@ -8,7 +8,6 @@ prints one focused section.
 
 import sys
 
-
 WHY = """\
 why reach for lemur instead of ad-hoc bash/grep/awk/python:
 
@@ -44,7 +43,7 @@ another lemur command will consume.
 """
 
 SECTIONS = {
-    'sweep': """\
+    "sweep": """\
 lemur sweep BENCH.smt2 [...] | lemur sweep LEAVES_DIR/
   why: parallel z3 pool with process-group kill on Ctrl-C / timeout /
        --stop-on (no orphaned z3 processes), per-run tmpdir isolation
@@ -195,7 +194,7 @@ lemur sweep BENCH.smt2 [...] | lemur sweep LEAVES_DIR/
     lemur search         grep over .z3-trace files.
     lemur nla            structured nla_solver lemma drill-down.
 """,
-    'tally': """\
+    "tally": """\
 lemur tally SWEEP.csv
   why: structured aggregation of a sweep CSV. counts by status AND
        tracks fastest-sat / fastest-unsat (time, seed) per config, which
@@ -204,7 +203,7 @@ lemur tally SWEEP.csv
        closure summary.
   -f plain|rich|json
 """,
-    'stats-diff': """\
+    "stats-diff": """\
 lemur stats-diff TRACE_A TRACE_B [--top-k N]
   why: side-by-side arith_conflict comparison between two traces — the
        baseline-vs-variant question that single-trace `lemur stats
@@ -243,7 +242,7 @@ lemur stats-diff TRACE_A TRACE_B [--top-k N]
     top constants    same union-then-max ordering.
     premise shapes   fixed 4-row order (clean / ite / mod_div / mixed).
 """,
-    'stats-compare': """\
+    "stats-compare": """\
 lemur stats-compare SAVE_DIR
 lemur stats-compare RUN.out [RUN.out ...] [--label NAME=GLOB]
   why: z3 -st output is an S-expression (`(:key value ...)`). this
@@ -269,7 +268,7 @@ lemur stats-compare RUN.out [RUN.out ...] [--label NAME=GLOB]
   whenever inputs are raw files; below it the numeric stats sorted by
   largest magnitude (rich) or alphabetically (csv/json).
 """,
-    'stats': """\
+    "stats": """\
 lemur stats TRACE
   why: aggregates trace entries by tag and function. block-aware, so
        counts are of actual trace entries, not line occurrences.
@@ -296,7 +295,7 @@ lemur stats TRACE
                      VC is a strong split candidate (see `lemur split
                      --split-only '^(BLK__N|BLK__M)$'`).
 """,
-    'nla-run': """\
+    "nla-run": """\
 lemur nla-run BENCH.smt2 [--seed N] [--timeout T] [--tactic '...']
               [--config K=V] [--z3 PATH] [--keep] [-- nla-flags...]
   why: capturing an nla_solver trace is otherwise a 3-step ritual
@@ -374,7 +373,7 @@ lemur nla-run BENCH.smt2 [--seed N] [--timeout T] [--tactic '...']
                                             configs (more flexible than
                                             nla-run for grids).
 """,
-    'nla-diff': """\
+    "nla-diff": """\
 lemur nla-diff TRACE_A TRACE_B [--top N] [--nra-a PATH] [--nra-b PATH]
   why: Comparing two nla_solver traces is the core analysis when
        investigating "why does seed N close in 4 s and seed M time out?"
@@ -470,7 +469,7 @@ lemur nla-diff TRACE_A TRACE_B [--top N] [--nra-a PATH] [--nra-b PATH]
     lemur search TRACE             grep over a trace's structural fields.
     lemur sweep --trace nla_solver --save  produces the trace files.
 """,
-    'nla': """\
+    "nla": """\
 lemur nla TRACE
   why: parses ~lemma_builder entries from an nla_solver trace into
        structured LemmaRecord (strategy, preconditions, conclusion,
@@ -615,7 +614,7 @@ lemur nla TRACE
     lemur search                           grep / filter the same trace.
     lemur stats                            tag/function aggregates.
 """,
-    'search': """\
+    "search": """\
 lemur search TRACE [PATTERN] [--tag RE] [--fn RE] [-n] [--entries]
   why: trace-aware grep. Z3 TRACE files have a block structure
        (header / body / footer). --tag '^nla' matches every
@@ -682,7 +681,7 @@ lemur search TRACE [PATTERN] [--tag RE] [--fn RE] [-n] [--entries]
     lemur nla     structured nla_solver lemma drill-down.
     lemur sweep --trace nla_solver --save  produces the trace files.
 """,
-    'split': """\
+    "split": """\
 lemur split BENCH.smt2 [--out DIR] [--max-leaves N]
   why: automatically discover good Boolean case-splits on hard SMT2 (the
        kind that manually cracks 60s-TO Certora VCs). enumerates
@@ -705,7 +704,7 @@ lemur split BENCH.smt2 [--out DIR] [--max-leaves N]
   binary that `lemur sweep` invokes. That is fine: split only
   manipulates formulas. The solver of record is the binary.
 """,
-    'split-status': """\
+    "split-status": """\
 lemur split-status DIR
   why: walks a recursive split tree (from `lemur split` then recursive
        re-splits) and reports aggregate stats: total leaves across the
@@ -715,7 +714,7 @@ lemur split-status DIR
   -v   list every leaf with its path and state
   -f plain|rich|json    json emits the full tree for scripting
 """,
-    'sgrep': """\
+    "sgrep": """\
 lemur sgrep FILE.smt2 [PATTERN] [--apply TACTIC]
   why: grep is line-oriented; SMT2 has multi-line `(let …)` nesting and
        shape variants like `(div (ite c A B) k)` vs `(ite c (div A k)
@@ -849,7 +848,7 @@ lemur sgrep FILE.smt2 [PATTERN] [--apply TACTIC]
     lemur sdiff --agent  — structural diff between two SMT2 files
                            (composes sgrep's pattern syntax).
 """,
-    'n-over-time': """\
+    "n-over-time": """\
 lemur n-over-time TRACE [TRACE ...] [--label LABEL ...]
                   [--format table|json|html|png] [--out PATH] [--shared-y]
   why: visualizes the SAT/NLA/nlsat fixpoint as N(t). Each NLA emission
@@ -975,7 +974,7 @@ lemur n-over-time TRACE [TRACE ...] [--label LABEL ...]
                               lemma indices are 1:1 with this view).
     lemur nla --by-round      grouped lemma list with round headers.
 """,
-    'sdiff': """\
+    "sdiff": """\
 lemur sdiff A.smt2 B.smt2 [--apply TACTIC | --apply-a T --apply-b T]
   why: structural-count diff between two SMT2 files. Tells you "encoder
        Pattern-3 went from 39 occurrences to 0" without staring at
@@ -1095,12 +1094,12 @@ def full() -> str:
 
 
 def section(name: str) -> str:
-    body = SECTIONS.get(name, '')
+    body = SECTIONS.get(name, "")
     return (
         body
         + "\n"
-        + f"for the full toolkit (all subcommands + rationale + workflows),\n"
-        + f"run `lemur --agent`.\n"
+        + "for the full toolkit (all subcommands + rationale + workflows),\n"
+        + "run `lemur --agent`.\n"
     )
 
 
@@ -1112,14 +1111,16 @@ def add_agent_flag(parser, subcommand_name: str) -> None:
 
     class _AgentAction(argparse.Action):
         def __init__(self, option_strings, dest, **kwargs):
-            super().__init__(option_strings, dest, nargs=0,
-                             default=argparse.SUPPRESS, **kwargs)
+            super().__init__(
+                option_strings, dest, nargs=0, default=argparse.SUPPRESS, **kwargs
+            )
 
         def __call__(self, parser, namespace, values, option_string=None):
             sys.stdout.write(section(subcommand_name))
             parser.exit(0)
 
     parser.add_argument(
-        '--agent', action=_AgentAction,
+        "--agent",
+        action=_AgentAction,
         help="Show agent-friendly usage guide for this subcommand",
     )

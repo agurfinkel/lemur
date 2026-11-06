@@ -15,15 +15,17 @@ to `lemur nla-diff`; same A/B/delta column layout.
 from __future__ import annotations
 
 import json
-import re
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
-from lemur.parsers import parse_trace, group_by_tag
+from lemur.parsers import group_by_tag, parse_trace
 from lemur.stats import (
-    _BIG_INT_RE, _BLOCK_RE, _PREMISE_END_RE,
-    _classify_premise_shape, _format_constant,
+    _BIG_INT_RE,
+    _BLOCK_RE,
+    _PREMISE_END_RE,
+    _classify_premise_shape,
+    _format_constant,
 )
 
 
@@ -45,8 +47,8 @@ class DiffSubsection:
 class ArithConflictDiff:
     a_path: str
     b_path: str
-    a_total: int        # total arith_conflict entries in A
-    b_total: int        # total arith_conflict entries in B
+    a_total: int  # total arith_conflict entries in A
+    b_total: int  # total arith_conflict entries in B
     subsections: list[DiffSubsection]
 
 
@@ -70,19 +72,19 @@ def _aggregate_arith_conflict(entries):
                 shape_counts[_classify_premise_shape(line)] += 1
                 total_premise_rows += 1
     return {
-        'count': len(entries),
-        'blocks': block_counts,
-        'consts': const_counts,
-        'shapes': shape_counts,
-        'premise_rows': total_premise_rows,
+        "count": len(entries),
+        "blocks": block_counts,
+        "consts": const_counts,
+        "shapes": shape_counts,
+        "premise_rows": total_premise_rows,
     }
 
 
 def _fmt_count_delta(a: int, b: int) -> str:
     if a == b:
-        return '='
+        return "="
     d = b - a
-    sign = '+' if d > 0 else ''
+    sign = "+" if d > 0 else ""
     if a > 0:
         pct = d / a * 100
         return f"{sign}{d} ({sign}{pct:.0f}%)"
@@ -91,7 +93,7 @@ def _fmt_count_delta(a: int, b: int) -> str:
 
 def _fmt_pct(num: int, den: int) -> str:
     if den == 0:
-        return '0.0%'
+        return "0.0%"
     return f"{100 * num / den:.1f}%"
 
 
@@ -100,31 +102,51 @@ def _fmt_pp_delta(a_num: int, a_den: int, b_num: int, b_den: int) -> str:
     b_pct = (100 * b_num / b_den) if b_den else 0.0
     d = b_pct - a_pct
     if abs(d) < 0.05:
-        return '='
-    sign = '+' if d > 0 else ''
+        return "="
+    sign = "+" if d > 0 else ""
     return f"{sign}{d:.1f}pp"
 
 
 def _diff_summary(a, b) -> DiffSubsection:
     rows = [
-        DiffRow('conflicts', str(a['count']), str(b['count']),
-                _fmt_count_delta(a['count'], b['count'])),
-        DiffRow('distinct blocks',
-                str(len(a['blocks'])), str(len(b['blocks'])),
-                _fmt_count_delta(len(a['blocks']), len(b['blocks']))),
-        DiffRow('distinct big-int constants',
-                str(len(a['consts'])), str(len(b['consts'])),
-                _fmt_count_delta(len(a['consts']), len(b['consts']))),
-        DiffRow('premise rows',
-                str(a['premise_rows']), str(b['premise_rows']),
-                _fmt_count_delta(a['premise_rows'], b['premise_rows'])),
+        DiffRow(
+            "conflicts",
+            str(a["count"]),
+            str(b["count"]),
+            _fmt_count_delta(a["count"], b["count"]),
+        ),
+        DiffRow(
+            "distinct blocks",
+            str(len(a["blocks"])),
+            str(len(b["blocks"])),
+            _fmt_count_delta(len(a["blocks"]), len(b["blocks"])),
+        ),
+        DiffRow(
+            "distinct big-int constants",
+            str(len(a["consts"])),
+            str(len(b["consts"])),
+            _fmt_count_delta(len(a["consts"]), len(b["consts"])),
+        ),
+        DiffRow(
+            "premise rows",
+            str(a["premise_rows"]),
+            str(b["premise_rows"]),
+            _fmt_count_delta(a["premise_rows"], b["premise_rows"]),
+        ),
     ]
-    return DiffSubsection('summary', rows)
+    return DiffSubsection("summary", rows)
 
 
-def _diff_top_counter(a_ctr: Counter, b_ctr: Counter, *, label: str,
-                      top_k: int, a_total: int, b_total: int,
-                      key_format=lambda k: k) -> DiffSubsection:
+def _diff_top_counter(
+    a_ctr: Counter,
+    b_ctr: Counter,
+    *,
+    label: str,
+    top_k: int,
+    a_total: int,
+    b_total: int,
+    key_format=lambda k: k,
+) -> DiffSubsection:
     """Generic top-K counter diff used for hot blocks and top constants.
 
     Surfaces up to `top_k` keys taken from the union of A's and B's
@@ -142,37 +164,40 @@ def _diff_top_counter(a_ctr: Counter, b_ctr: Counter, *, label: str,
     for key, a_n, b_n in candidates[:top_k]:
         a_disp = f"{a_n} ({_fmt_pct(a_n, a_total)})"
         b_disp = f"{b_n} ({_fmt_pct(b_n, b_total)})"
-        rows.append(DiffRow(key_format(key), a_disp, b_disp,
-                            _fmt_count_delta(a_n, b_n)))
+        rows.append(
+            DiffRow(key_format(key), a_disp, b_disp, _fmt_count_delta(a_n, b_n))
+        )
     if not rows:
-        rows.append(DiffRow('(none)', '0', '0', '='))
+        rows.append(DiffRow("(none)", "0", "0", "="))
     return DiffSubsection(label, rows)
 
 
 def _diff_premise_shapes(a, b) -> DiffSubsection:
-    shape_order = ['clean_linear', 'ite_wrapped', 'mod_div_wrapped', 'mixed']
-    a_total = a['premise_rows']
-    b_total = b['premise_rows']
+    shape_order = ["clean_linear", "ite_wrapped", "mod_div_wrapped", "mixed"]
+    a_total = a["premise_rows"]
+    b_total = b["premise_rows"]
     rows: list[DiffRow] = []
     for s in shape_order:
-        a_n = a['shapes'].get(s, 0)
-        b_n = b['shapes'].get(s, 0)
+        a_n = a["shapes"].get(s, 0)
+        b_n = b["shapes"].get(s, 0)
         a_disp = f"{a_n} ({_fmt_pct(a_n, a_total)})"
         b_disp = f"{b_n} ({_fmt_pct(b_n, b_total)})"
-        rows.append(DiffRow(s, a_disp, b_disp,
-                            _fmt_pp_delta(a_n, a_total, b_n, b_total)))
-    return DiffSubsection('premise shapes (% of premise rows)', rows)
+        rows.append(
+            DiffRow(s, a_disp, b_disp, _fmt_pp_delta(a_n, a_total, b_n, b_total))
+        )
+    return DiffSubsection("premise shapes (% of premise rows)", rows)
 
 
-def diff_arith_conflict(a_path: str, b_path: str, *, top_k: int = 5
-                        ) -> ArithConflictDiff:
+def diff_arith_conflict(
+    a_path: str, b_path: str, *, top_k: int = 5
+) -> ArithConflictDiff:
     """Build the full delta tree from two trace paths.
 
     Raises ValueError if either trace has no [arith_conflict] entries
     (the diff is meaningless without them on both sides).
     """
-    a_entries = group_by_tag(list(parse_trace(a_path))).get('arith_conflict', [])
-    b_entries = group_by_tag(list(parse_trace(b_path))).get('arith_conflict', [])
+    a_entries = group_by_tag(list(parse_trace(a_path))).get("arith_conflict", [])
+    b_entries = group_by_tag(list(parse_trace(b_path))).get("arith_conflict", [])
     if not a_entries:
         raise ValueError(f"no [arith_conflict] entries in {a_path}")
     if not b_entries:
@@ -183,14 +208,20 @@ def diff_arith_conflict(a_path: str, b_path: str, *, top_k: int = 5
 
     summary = _diff_summary(a_agg, b_agg)
     hot_blocks = _diff_top_counter(
-        a_agg['blocks'], b_agg['blocks'],
+        a_agg["blocks"],
+        b_agg["blocks"],
         label=f"hot blocks (top {top_k} by max(A,B) conflicts containing block)",
-        top_k=top_k, a_total=a_agg['count'], b_total=b_agg['count'],
+        top_k=top_k,
+        a_total=a_agg["count"],
+        b_total=b_agg["count"],
     )
     top_consts = _diff_top_counter(
-        a_agg['consts'], b_agg['consts'],
+        a_agg["consts"],
+        b_agg["consts"],
         label=f"top constants (top {top_k})",
-        top_k=top_k, a_total=a_agg['count'], b_total=b_agg['count'],
+        top_k=top_k,
+        a_total=a_agg["count"],
+        b_total=b_agg["count"],
         key_format=_format_constant,
     )
     shapes = _diff_premise_shapes(a_agg, b_agg)
@@ -198,8 +229,8 @@ def diff_arith_conflict(a_path: str, b_path: str, *, top_k: int = 5
     return ArithConflictDiff(
         a_path=a_path,
         b_path=b_path,
-        a_total=a_agg['count'],
-        b_total=b_agg['count'],
+        a_total=a_agg["count"],
+        b_total=b_agg["count"],
         subsections=[summary, hot_blocks, top_consts, shapes],
     )
 
@@ -217,7 +248,7 @@ def render_plain(d: ArithConflictDiff) -> str:
     # across subsections.
     all_rows = [r for sub in d.subsections for r in sub.rows]
     if not all_rows:
-        return '\n'.join(lines) + '\n(no data)\n'
+        return "\n".join(lines) + "\n(no data)\n"
     key_w = max(len("metric"), max(len(r.key) for r in all_rows))
     a_w = max(len("A"), max(len(r.a) for r in all_rows))
     b_w = max(len("B"), max(len(r.b) for r in all_rows))
@@ -225,13 +256,15 @@ def render_plain(d: ArithConflictDiff) -> str:
     for sub in d.subsections:
         lines.append("")
         lines.append(f"## {sub.label}")
-        lines.append(f"{'metric':<{key_w}}  {'A':>{a_w}}  {'B':>{b_w}}  {'delta':>{d_w}}")
+        lines.append(
+            f"{'metric':<{key_w}}  {'A':>{a_w}}  {'B':>{b_w}}  {'delta':>{d_w}}"
+        )
         lines.append(f"{'-' * key_w}  {'-' * a_w}  {'-' * b_w}  {'-' * d_w}")
         for r in sub.rows:
             lines.append(
                 f"{r.key:<{key_w}}  {r.a:>{a_w}}  {r.b:>{b_w}}  {r.delta:>{d_w}}"
             )
-    return '\n'.join(lines) + '\n'
+    return "\n".join(lines) + "\n"
 
 
 def render_rich(d: ArithConflictDiff, console) -> None:
@@ -245,8 +278,7 @@ def render_rich(d: ArithConflictDiff, console) -> None:
     header.add_row("A", d.a_path)
     header.add_row("B", d.b_path)
     header.add_row("arith_conflict entries", f"A={d.a_total}  B={d.b_total}")
-    console.print(Panel(header, title=Text("stats-diff", style="bold"),
-                        expand=False))
+    console.print(Panel(header, title=Text("stats-diff", style="bold"), expand=False))
 
     for sub in d.subsections:
         t = Table(title=sub.label, pad_edge=True)
@@ -260,19 +292,22 @@ def render_rich(d: ArithConflictDiff, console) -> None:
 
 
 def render_json(d: ArithConflictDiff) -> str:
-    return json.dumps({
-        "a": str(Path(d.a_path).resolve()),
-        "b": str(Path(d.b_path).resolve()),
-        "a_total": d.a_total,
-        "b_total": d.b_total,
-        "subsections": [
-            {
-                "label": sub.label,
-                "rows": [
-                    {"key": r.key, "a": r.a, "b": r.b, "delta": r.delta}
-                    for r in sub.rows
-                ],
-            }
-            for sub in d.subsections
-        ],
-    }, indent=2)
+    return json.dumps(
+        {
+            "a": str(Path(d.a_path).resolve()),
+            "b": str(Path(d.b_path).resolve()),
+            "a_total": d.a_total,
+            "b_total": d.b_total,
+            "subsections": [
+                {
+                    "label": sub.label,
+                    "rows": [
+                        {"key": r.key, "a": r.a, "b": r.b, "delta": r.delta}
+                        for r in sub.rows
+                    ],
+                }
+                for sub in d.subsections
+            ],
+        },
+        indent=2,
+    )

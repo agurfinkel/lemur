@@ -35,30 +35,30 @@ postmortem and v2 productivity pivot) for the empirical table.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
 from collections import Counter
+from dataclasses import dataclass, field
 
 from lemur.parsers import TraceEntry
-
 
 # `sz = 7, m_to_refine = 1 less` — N, K, status. Tolerant on whitespace
 # around `=` and on optional trailing punctuation (the trace has bare
 # words; older builds might wrap in parens).
 _PRODUCTIVITY_LINE_RE = re.compile(
-    r'sz\s*=\s*(?P<start>\d+)\s*,\s*'
-    r'm_to_refine\s*=\s*(?P<end>\d+)\s*'
-    r'\(?(?P<status>less|same|more)\)?'
+    r"sz\s*=\s*(?P<start>\d+)\s*,\s*"
+    r"m_to_refine\s*=\s*(?P<end>\d+)\s*"
+    r"\(?(?P<status>less|same|more)\)?"
 )
 
 
 @dataclass
 class ProductivityStats:
     """Aggregate round-classification + per-lemma yield for one trace."""
-    classified_rounds: int                   # rounds with a parseable status line
+
+    classified_rounds: int  # rounds with a parseable status line
     status_counts: Counter = field(default_factory=Counter)
-    total_evictions: int = 0                 # sum(start - end) across rounds
-    total_lemmas: int = 0                    # ~lemma_builder block count
-    available: bool = True                   # False when the trace lacks status lines
+    total_evictions: int = 0  # sum(start - end) across rounds
+    total_lemmas: int = 0  # ~lemma_builder block count
+    available: bool = True  # False when the trace lacks status lines
 
     @property
     def productivity_rate(self) -> float | None:
@@ -66,7 +66,7 @@ class ProductivityStats:
         rounds were observed (avoids ZeroDivisionError on empty traces)."""
         if not self.classified_rounds:
             return None
-        return self.status_counts.get('less', 0) / self.classified_rounds
+        return self.status_counts.get("less", 0) / self.classified_rounds
 
     @property
     def eviction_yield(self) -> float | None:
@@ -83,8 +83,7 @@ class ProductivityStats:
         an empty dict when nothing was classified."""
         if not self.classified_rounds:
             return {}
-        return {s: n / self.classified_rounds
-                for s, n in self.status_counts.items()}
+        return {s: n / self.classified_rounds for s, n in self.status_counts.items()}
 
 
 def compute_productivity_stats(entries: list[TraceEntry]) -> ProductivityStats:
@@ -107,19 +106,19 @@ def compute_productivity_stats(entries: list[TraceEntry]) -> ProductivityStats:
     saw_any_status = False
 
     for e in entries:
-        if e.function == '~lemma_builder':
+        if e.function == "~lemma_builder":
             lemma_count += 1
             continue
-        if e.function != 'patch_monomials_on_to_refine':
+        if e.function != "patch_monomials_on_to_refine":
             continue
         for line in e.body.splitlines():
             m = _PRODUCTIVITY_LINE_RE.search(line)
             if not m:
                 continue
             saw_any_status = True
-            start = int(m.group('start'))
-            end = int(m.group('end'))
-            status = m.group('status')
+            start = int(m.group("start"))
+            end = int(m.group("end"))
+            status = m.group("status")
             counts[status] += 1
             classified += 1
             evictions += max(start - end, 0)

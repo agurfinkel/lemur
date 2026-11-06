@@ -68,3 +68,8 @@ AST trace log (`z3.log`): line-oriented `[event-type] data`. Enabled by `trace=t
 - Output: Rich for TTY, plain when piped. All tools support `-f plain|json|rich`
 - Parsers are modular by tag. Adding a new CTRACE tag = new analyzer function in `stats.py`
 - Lemma analysis lives in `lemma.py` (parsing) and `report.py` (rendering)
+
+## Before committing
+
+Run `uv run ruff check .`, `uv run ruff format --check .`, and `uv run pytest`.
+Use `uv run ruff format .` to format code. CI repeats these checks on PRs.

@@ -37,6 +37,25 @@ Use `uv sync --locked --no-dev` for a runtime-only environment. The default
 installation does not require Z3's Python bindings; running solver sweeps still
 requires a separate Z3 executable.
 
+## Development checks
+
+Pull requests and pushes run Ruff lint/import checks, Ruff formatting, and
+pytest on Python 3.11 and 3.14 with all optional extras. CI also builds the
+wheel and source archive.
+
+Run the checks locally:
+
+```bash
+uv sync --locked --all-extras
+uv run ruff check .
+uv run ruff format --check .
+uv run pytest -q
+uv build
+```
+
+Use `uv run ruff check --fix .` and `uv run ruff format .` to apply safe
+lint fixes and formatting before committing.
+
 ## 🔧 Tools
 
 ### 🌀 lemur sweep — Seed/config sweep runner

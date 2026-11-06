@@ -1,17 +1,17 @@
 """Tests for round-productivity / eviction-yield statistics."""
 
-from lemur.parsers import parse_trace, TraceEntry
+from lemur.parsers import TraceEntry, parse_trace
 from lemur.productivity import compute_productivity_stats
 
 
 def _entries(trace_text: str) -> list[TraceEntry]:
     """Helper: parse an inline trace string into TraceEntry list."""
     import io
+
     return list(parse_trace(io.StringIO(trace_text)))
 
 
-HEADER_PATCH = ("-------- [nla_solver] patch_monomials_on_to_refine "
-                "/p:1 ---------")
+HEADER_PATCH = "-------- [nla_solver] patch_monomials_on_to_refine /p:1 ---------"
 HEADER_LEMMA = "-------- [nla_solver] ~lemma_builder /p:2 ---------"
 FOOTER = "------------------------------------------------"
 
@@ -73,7 +73,7 @@ def test_mixed_status_share_sums_to_one():
     assert s.classified_rounds == 4
     # 1/4 = 0.25 less, 3/4 = 0.75 same
     assert s.productivity_rate == 0.25
-    assert s.status_share == {'less': 0.25, 'same': 0.75}
+    assert s.status_share == {"less": 0.25, "same": 0.75}
     # Single eviction (3) over 8 lemmas → 0.375 yield
     assert s.eviction_yield == 0.375
 
@@ -83,7 +83,7 @@ def test_more_status_supported_even_if_rare():
     # some builds; the classifier should accept it without crashing.
     trace = _patch_block("sz = 2, m_to_refine = 5 more") + _lemma_block()
     s = compute_productivity_stats(_entries(trace))
-    assert s.status_counts['more'] == 1
+    assert s.status_counts["more"] == 1
     # No evictions when end > start (max(start-end, 0) clamps).
     assert s.total_evictions == 0
 
@@ -94,7 +94,7 @@ def test_unparseable_status_lines_dont_classify():
     # must skip the line, not crash, and not over-count.
     trace = (
         _patch_block("sz = whatever, m_to_refine = ??? less")  # malformed
-        + _patch_block("sz = 5, m_to_refine = 2 less")          # valid
+        + _patch_block("sz = 5, m_to_refine = 2 less")  # valid
         + _lemma_block() * 1
     )
     s = compute_productivity_stats(_entries(trace))
@@ -132,10 +132,11 @@ def test_real_combo_all_bad_seed_trace():
     proposal's T:12 run since the test trace was captured at T:30, but
     the qualitative signal must hold."""
     import os
-    path = '/tmp/lemur-coarse-fp/combo-bad/.z3-trace'
+
+    path = "/tmp/lemur-coarse-fp/combo-bad/.z3-trace"
     if not os.path.exists(path):
         return  # local-machine fixture; skip on CI / fresh checkouts
-    entries = [e for e in parse_trace(path) if e.tag == 'nla_solver']
+    entries = [e for e in parse_trace(path) if e.tag == "nla_solver"]
     s = compute_productivity_stats(entries)
     assert s.available is True
     assert s.classified_rounds > 1000

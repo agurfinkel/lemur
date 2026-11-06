@@ -9,7 +9,6 @@ import atexit
 import enum
 import json
 import os
-import re
 import shlex
 import shutil
 import signal
@@ -19,24 +18,31 @@ import tempfile
 import time
 from concurrent.futures import CancelledError, ProcessPoolExecutor, as_completed
 from concurrent.futures.process import BrokenProcessPool
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
-from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
 
 from lemur.smt_inject import make_split_smt
-
 from lemur.table import SweepTable, make_console
+from lemur.z3_stats import parse_z3_stats  # noqa: F401  (re-export)
 
 
 @dataclass
 class RunConfig:
     """A named Z3 configuration (set of key=value params)."""
+
     name: str
     params: dict[str, str]
 
     @classmethod
-    def parse(cls, spec: str) -> 'RunConfig':
+    def parse(cls, spec: str) -> "RunConfig":
         """Parse 'name: key=val key=val ...' or '"name with spaces": key=val ...'.
 
         Values containing whitespace must be quoted, e.g.
@@ -47,18 +53,18 @@ class RunConfig:
         if spec.startswith('"'):
             end_quote = spec.index('"', 1)
             name = spec[1:end_quote]
-            rest = spec[end_quote + 1:].lstrip(': ')
+            rest = spec[end_quote + 1 :].lstrip(": ")
         else:
-            parts = spec.split(':', 1)
+            parts = spec.split(":", 1)
             name = parts[0].strip()
-            rest = parts[1].strip() if len(parts) > 1 else ''
+            rest = parts[1].strip() if len(parts) > 1 else ""
 
         params = {}
         # shlex.split respects quoting so whitespace inside quoted values is
         # preserved (e.g. tactic.default_tactic="(then simplify smt)").
         for token in shlex.split(rest):
-            if '=' in token:
-                k, v = token.split('=', 1)
+            if "=" in token:
+                k, v = token.split("=", 1)
                 params[k] = v
         return cls(name=name, params=params)
 
@@ -72,19 +78,17 @@ class RunResult:
     stdout: str
     stderr: str
     trace_file: Path | None  # path to saved trace, if any
-    cmdline: str = ''  # copy-pasteable z3 command for manual re-run
+    cmdline: str = ""  # copy-pasteable z3 command for manual re-run
     stats: dict | None = None  # parsed z3 -st stats, when --stats enabled
     split: str | None = None  # split name, when --split used
 
 
 class StopAction(enum.Enum):
     """Disposition returned by process_result: what the sweep should do next."""
-    NONE = 'none'            # record & continue
-    GLOBAL = 'global'        # abort the whole sweep
-    PER_SPLIT = 'per_split'  # prune just this split's remaining work
 
-
-from lemur.z3_stats import parse_z3_stats  # noqa: F401  (re-export)
+    NONE = "none"  # record & continue
+    GLOBAL = "global"  # abort the whole sweep
+    PER_SPLIT = "per_split"  # prune just this split's remaining work
 
 
 # Temp dirs created by in-flight runs, cleaned up on normal or abnormal exit.
@@ -121,21 +125,27 @@ def _kill_process_group(proc: subprocess.Popen) -> None:
             pass
 
 
-def run_single(z3_bin: str, smt_file: str, seed: int, config: RunConfig,
-               timeout: int, trace_tags: list[str] | None = None,
-               verbosity: int = 2, z3_log: bool = False,
-               save_dir: str | None = None,
-               parent_tmpdir: str | None = None,
-               stats: bool = False,
-               split_name: str | None = None) -> RunResult:
+def run_single(
+    z3_bin: str,
+    smt_file: str,
+    seed: int,
+    config: RunConfig,
+    timeout: int,
+    trace_tags: list[str] | None = None,
+    verbosity: int = 2,
+    z3_log: bool = False,
+    save_dir: str | None = None,
+    parent_tmpdir: str | None = None,
+    stats: bool = False,
+    split_name: str | None = None,
+) -> RunResult:
     """Run a single Z3 invocation in a temp directory."""
 
     name_tag = f"{split_name}.{config.name}" if split_name else config.name
-    tmpdir = tempfile.mkdtemp(prefix=f"lemur_{name_tag}_s{seed}_",
-                              dir=parent_tmpdir)
+    tmpdir = tempfile.mkdtemp(prefix=f"lemur_{name_tag}_s{seed}_", dir=parent_tmpdir)
     _active_temp_dirs.add(tmpdir)
 
-    cmdline = ''
+    cmdline = ""
     proc: subprocess.Popen | None = None
     try:
         cmd = [z3_bin]
@@ -151,21 +161,23 @@ def run_single(z3_bin: str, smt_file: str, seed: int, config: RunConfig,
 
         # Enable AST trace log if requested (writes to z3.log in CWD)
         if z3_log:
-            cmd.extend(['trace=true', 'trace_file_name=z3.log'])
+            cmd.extend(["trace=true", "trace_file_name=z3.log"])
 
         # Enable z3 statistics output
         if stats:
-            cmd.append('-st')
+            cmd.append("-st")
 
         # Add verbosity, seed, and timeout
-        cmd.extend([
-            f"-v:{verbosity}",
-            f"sat.random_seed={seed}",
-            f"smt.random_seed={seed}",
-            f"nlsat.seed={seed}",
-            f"-T:{timeout}",
-            smt_file,
-        ])
+        cmd.extend(
+            [
+                f"-v:{verbosity}",
+                f"sat.random_seed={seed}",
+                f"smt.random_seed={seed}",
+                f"nlsat.seed={seed}",
+                f"-T:{timeout}",
+                smt_file,
+            ]
+        )
 
         cmdline = shlex.join(cmd)
 
@@ -187,29 +199,32 @@ def run_single(z3_bin: str, smt_file: str, seed: int, config: RunConfig,
             try:
                 stdout, stderr = proc.communicate(timeout=2)
             except subprocess.TimeoutExpired:
-                stdout, stderr = '', ''
+                stdout, stderr = "", ""
             return RunResult(
-                config=config.name, seed=seed, status='timeout',
+                config=config.name,
+                seed=seed,
+                status="timeout",
                 time_s=float(timeout),
-                stdout=stdout or '',
-                stderr=(stderr or '') + '\ntimeout (process killed)',
-                trace_file=None, cmdline=cmdline,
+                stdout=stdout or "",
+                stderr=(stderr or "") + "\ntimeout (process killed)",
+                trace_file=None,
+                cmdline=cmdline,
             )
         elapsed = time.monotonic() - start
 
         # Parse status from stdout
         out = stdout.strip()
-        first_line = out.split('\n')[0].strip() if out else ''
-        if first_line == 'sat':
-            status = 'sat'
-        elif first_line == 'unsat':
-            status = 'unsat'
-        elif first_line == 'timeout':
-            status = 'timeout'
-        elif first_line == 'unknown':
-            status = 'unknown'
+        first_line = out.split("\n")[0].strip() if out else ""
+        if first_line == "sat":
+            status = "sat"
+        elif first_line == "unsat":
+            status = "unsat"
+        elif first_line == "timeout":
+            status = "timeout"
+        elif first_line == "unknown":
+            status = "unknown"
         else:
-            status = 'error'
+            status = "error"
 
         stats_data = parse_z3_stats(stdout) if stats else None
 
@@ -226,28 +241,29 @@ def run_single(z3_bin: str, smt_file: str, seed: int, config: RunConfig,
             prefix = str(Path(save_dir) / f"{save_stem}_s{seed}")
 
             # Trace file
-            trace_src = Path(tmpdir) / '.z3-trace'
+            trace_src = Path(tmpdir) / ".z3-trace"
             if trace_src.exists() and trace_src.stat().st_size > 0:
-                trace_dest = Path(prefix + '.trace')
+                trace_dest = Path(prefix + ".trace")
                 shutil.copy2(trace_src, trace_dest)
 
             # stdout
             if stdout.strip():
-                Path(prefix + '.stdout').write_text(stdout)
+                Path(prefix + ".stdout").write_text(stdout)
 
             # stderr
             if stderr.strip():
-                Path(prefix + '.stderr').write_text(stderr)
+                Path(prefix + ".stderr").write_text(stderr)
 
             # z3 AST trace log
-            z3_log_src = Path(tmpdir) / 'z3.log'
+            z3_log_src = Path(tmpdir) / "z3.log"
             if z3_log_src.exists() and z3_log_src.stat().st_size > 0:
-                shutil.copy2(z3_log_src, Path(prefix + '.z3log'))
+                shutil.copy2(z3_log_src, Path(prefix + ".z3log"))
 
             # Parsed z3 stats
             if stats_data is not None:
-                Path(prefix + '.stats.json').write_text(
-                    json.dumps(stats_data, indent=2))
+                Path(prefix + ".stats.json").write_text(
+                    json.dumps(stats_data, indent=2)
+                )
 
         return RunResult(
             config=config.name,
@@ -270,9 +286,15 @@ def run_single(z3_bin: str, smt_file: str, seed: int, config: RunConfig,
         if proc is not None:
             _kill_process_group(proc)
         return RunResult(
-            config=config.name, seed=seed, status='error',
-            time_s=0.0, stdout='', stderr=str(e), trace_file=None,
-            cmdline=cmdline, split=split_name,
+            config=config.name,
+            seed=seed,
+            status="error",
+            time_s=0.0,
+            stdout="",
+            stderr=str(e),
+            trace_file=None,
+            cmdline=cmdline,
+            split=split_name,
         )
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
@@ -291,7 +313,7 @@ def _shutdown_pool_workers(executor: ProcessPoolExecutor) -> None:
     Each worker's run_single kills its z3 child and removes its tmpdir when
     KeyboardInterrupt fires. We send SIGINT explicitly (not relying on the
     shell's group signal) and wait briefly before SIGTERM/SIGKILL."""
-    procs = list(getattr(executor, '_processes', {}).values())
+    procs = list(getattr(executor, "_processes", {}).values())
     for p in procs:
         try:
             p.send_signal(signal.SIGINT)
@@ -321,9 +343,21 @@ def _cancel_and_shutdown(executor, futures):
     executor.shutdown(wait=False, cancel_futures=True)
 
 
-def _run_parallel(work, jobs, process_result, closed_splits, *, z3_bin,
-                  timeout, trace_tags, verbosity, z3_log, save_dir,
-                  parent_tmpdir, stats):
+def _run_parallel(
+    work,
+    jobs,
+    process_result,
+    closed_splits,
+    *,
+    z3_bin,
+    timeout,
+    trace_tags,
+    verbosity,
+    z3_log,
+    save_dir,
+    parent_tmpdir,
+    stats,
+):
     """Run work items in a process pool. Each work item is
     (split_name, smt_path, config, seed). `process_result(result)` returns
     a StopAction indicating how to proceed. `closed_splits` is mutated by
@@ -339,9 +373,21 @@ def _run_parallel(work, jobs, process_result, closed_splits, *, z3_bin,
     stopped_early = False
     try:
         for split_name, smt_path, config, seed in work:
-            f = executor.submit(run_single, z3_bin, smt_path, seed, config,
-                                timeout, trace_tags, verbosity, z3_log,
-                                save_dir, parent_tmpdir, stats, split_name)
+            f = executor.submit(
+                run_single,
+                z3_bin,
+                smt_path,
+                seed,
+                config,
+                timeout,
+                trace_tags,
+                verbosity,
+                z3_log,
+                save_dir,
+                parent_tmpdir,
+                stats,
+                split_name,
+            )
             futures[f] = (split_name, config.name, seed)
 
         for f in as_completed(futures):
@@ -383,20 +429,26 @@ def _run_parallel(work, jobs, process_result, closed_splits, *, z3_bin,
             executor.shutdown(wait=True)
 
 
-def run_sweep(z3_bin: str, smt_file: str, seeds: list[int],
-              configs: list[RunConfig], timeout: int, jobs: int = 1,
-              trace_tags: list[str] | None = None,
-              verbosity: int = 2, z3_log: bool = False,
-              save_dir: str | None = None,
-              show_progress: bool = True,
-              on_result=None,
-              stop_when=None,
-              stats: bool = False,
-              splits: list[tuple[str, str]] | None = None,
-              stop_per_split_when=None,
-              leaf_files: list[tuple[str, str]] | None = None,
-              pre_closed_splits: dict[str, str] | None = None,
-              ) -> tuple[SweepTable, list[RunResult]]:
+def run_sweep(
+    z3_bin: str,
+    smt_file: str,
+    seeds: list[int],
+    configs: list[RunConfig],
+    timeout: int,
+    jobs: int = 1,
+    trace_tags: list[str] | None = None,
+    verbosity: int = 2,
+    z3_log: bool = False,
+    save_dir: str | None = None,
+    show_progress: bool = True,
+    on_result=None,
+    stop_when=None,
+    stats: bool = False,
+    splits: list[tuple[str, str]] | None = None,
+    stop_per_split_when=None,
+    leaf_files: list[tuple[str, str]] | None = None,
+    pre_closed_splits: dict[str, str] | None = None,
+) -> tuple[SweepTable, list[RunResult]]:
     """Run a full sweep and return a populated SweepTable and all RunResults.
 
     If `on_result` is given, it is invoked with each RunResult as soon as
@@ -432,20 +484,22 @@ def run_sweep(z3_bin: str, smt_file: str, seeds: list[int],
     config_names = [c.name for c in configs]
     table = SweepTable(config_names, seeds)
     all_results: list[RunResult] = []
-    status_counts = {'sat': 0, 'unsat': 0, 'timeout': 0, 'unknown': 0, 'error': 0}
+    status_counts = {"sat": 0, "unsat": 0, "timeout": 0, "unknown": 0, "error": 0}
     closed_splits: set[str] = set()
     # Count total splits (for the `closed=N/M` progress readout): prefer the
     # explicit `splits` / `leaf_files` list, then fall back to pre-closed.
     if splits:
         n_splits_total = len(splits)
     elif leaf_files:
-        n_splits_total = len(leaf_files) + (len(pre_closed_splits) if pre_closed_splits else 0)
+        n_splits_total = len(leaf_files) + (
+            len(pre_closed_splits) if pre_closed_splits else 0
+        )
     else:
         n_splits_total = 0
 
     # Per-sweep parent tmpdir: every run_single tmpdir nests under this, so a
     # single rmtree at the end cleans up even if a worker was killed mid-cleanup.
-    sweep_tmp = tempfile.mkdtemp(prefix='lemur_sweep_')
+    sweep_tmp = tempfile.mkdtemp(prefix="lemur_sweep_")
     _active_temp_dirs.add(sweep_tmp)
 
     # Build (split_name, smt_path) tuples. None split = original benchmark.
@@ -461,10 +515,12 @@ def run_sweep(z3_bin: str, smt_file: str, seeds: list[int],
         split_files = [(None, smt_file)]
 
     # Build work items: split × config × seed
-    work = [(sname, spath, config, seed)
-            for sname, spath in split_files
-            for config in configs
-            for seed in seeds]
+    work = [
+        (sname, spath, config, seed)
+        for sname, spath in split_files
+        for config in configs
+        for seed in seeds
+    ]
     # Pre-closed splits emit exactly one synthetic result each, so they
     # count toward the progress-bar total.
     total = len(work) + (len(pre_closed_splits) if pre_closed_splits else 0)
@@ -479,18 +535,21 @@ def run_sweep(z3_bin: str, smt_file: str, seeds: list[int],
             TimeElapsedColumn(),
             console=console,
         )
-        task_id = progress.add_task("Sweeping  sat=0 unsat=0 to=0 unk=0 err=0",
-                                    total=total)
+        task_id = progress.add_task(
+            "Sweeping  sat=0 unsat=0 to=0 unk=0 err=0", total=total
+        )
     else:
         progress = None
 
     def _tally_desc() -> str:
-        base = (f"Sweeping  "
-                f"[green]sat={status_counts['sat']}[/green] "
-                f"[cyan]unsat={status_counts['unsat']}[/cyan] "
-                f"[red]to={status_counts['timeout']}[/red] "
-                f"[yellow]unk={status_counts['unknown']}[/yellow] "
-                f"err={status_counts['error']}")
+        base = (
+            f"Sweeping  "
+            f"[green]sat={status_counts['sat']}[/green] "
+            f"[cyan]unsat={status_counts['unsat']}[/cyan] "
+            f"[red]to={status_counts['timeout']}[/red] "
+            f"[yellow]unk={status_counts['unknown']}[/yellow] "
+            f"err={status_counts['error']}"
+        )
         if stop_per_split_when is not None and n_splits_total:
             base += f"  [magenta]closed={len(closed_splits)}/{n_splits_total}[/magenta]"
         return base
@@ -507,10 +566,12 @@ def run_sweep(z3_bin: str, smt_file: str, seeds: list[int],
 
         if stop_when is not None and stop_when(result):
             return StopAction.GLOBAL
-        if (stop_per_split_when is not None
-                and result.split is not None
-                and result.split not in closed_splits
-                and stop_per_split_when(result)):
+        if (
+            stop_per_split_when is not None
+            and result.split is not None
+            and result.split not in closed_splits
+            and stop_per_split_when(result)
+        ):
             closed_splits.add(result.split)
             return StopAction.PER_SPLIT
         return StopAction.NONE
@@ -520,16 +581,17 @@ def run_sweep(z3_bin: str, smt_file: str, seeds: list[int],
     # closure without spawning z3.
     if pre_closed_splits:
         # Use the first configured config as the "closer" label; seed 0.
-        closer_config = configs[0].name if configs else 'default'
+        closer_config = configs[0].name if configs else "default"
         for sname, reason in pre_closed_splits.items():
             synthetic = RunResult(
                 config=closer_config,
                 seed=0,
-                status='unsat',
+                status="unsat",
                 time_s=0.0,
-                stdout='', stderr=f'[lemur] pre-closed: {reason}',
+                stdout="",
+                stderr=f"[lemur] pre-closed: {reason}",
                 trace_file=None,
-                cmdline='',
+                cmdline="",
                 stats=None,
                 split=sname,
             )
@@ -550,10 +612,20 @@ def run_sweep(z3_bin: str, smt_file: str, seeds: list[int],
                 for sname, spath, config, seed in work:
                     if sname in closed_splits:
                         continue
-                    result = run_single(z3_bin, spath, seed, config,
-                                        timeout, trace_tags, verbosity, z3_log,
-                                        save_dir, parent_tmpdir=sweep_tmp,
-                                        stats=stats, split_name=sname)
+                    result = run_single(
+                        z3_bin,
+                        spath,
+                        seed,
+                        config,
+                        timeout,
+                        trace_tags,
+                        verbosity,
+                        z3_log,
+                        save_dir,
+                        parent_tmpdir=sweep_tmp,
+                        stats=stats,
+                        split_name=sname,
+                    )
                     action = process_result(result)
                     if action is StopAction.GLOBAL:
                         break
@@ -562,15 +634,24 @@ def run_sweep(z3_bin: str, smt_file: str, seeds: list[int],
                     # work for closed splits.
             else:
                 _run_parallel(
-                    work, jobs, process_result, closed_splits,
-                    z3_bin=z3_bin, timeout=timeout,
-                    trace_tags=trace_tags, verbosity=verbosity, z3_log=z3_log,
-                    save_dir=save_dir, parent_tmpdir=sweep_tmp,
+                    work,
+                    jobs,
+                    process_result,
+                    closed_splits,
+                    z3_bin=z3_bin,
+                    timeout=timeout,
+                    trace_tags=trace_tags,
+                    verbosity=verbosity,
+                    z3_log=z3_log,
+                    save_dir=save_dir,
+                    parent_tmpdir=sweep_tmp,
                     stats=stats,
                 )
     except KeyboardInterrupt:
-        print("\n[interrupted] killing running z3 processes and cleaning up...",
-              file=sys.stderr)
+        print(
+            "\n[interrupted] killing running z3 processes and cleaning up...",
+            file=sys.stderr,
+        )
         _cleanup_temp_dirs()
         sys.exit(130)
     finally:
@@ -583,6 +664,7 @@ def run_sweep(z3_bin: str, smt_file: str, seeds: list[int],
 class _nullcontext:
     def __enter__(self):
         return self
+
     def __exit__(self, *args):
         pass
 
@@ -590,10 +672,10 @@ class _nullcontext:
 def parse_seed_range(spec: str) -> list[int]:
     """Parse seed specification: '0-15', '1,3,5', '0-3,7,10-12'."""
     seeds = []
-    for part in spec.split(','):
+    for part in spec.split(","):
         part = part.strip()
-        if '-' in part:
-            lo, hi = part.split('-', 1)
+        if "-" in part:
+            lo, hi = part.split("-", 1)
             seeds.extend(range(int(lo), int(hi) + 1))
         else:
             seeds.append(int(part))
