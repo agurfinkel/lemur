@@ -1,0 +1,12 @@
+-------- [bit_blaster] reduce_app src/ast/rewriter/bit_blaster/bit_blaster_rewriter.cpp:406 ---------
+nd.0_0 
+------------------------------------------------
+-------- [sat] mk_clause_core src/sat/sat_solver.cpp:422 ---------
+mk_clause: 1 3 aux
+------------------------------------------------
+-------- [sat_decide] decide src/sat/sat_solver.cpp:1804 ---------
+1: next-case-split: -35
+------------------------------------------------
+-------- [bv] internalize_term_core src/smt/theory_bv.cpp:909 ---------
+internalizing term: #1167 (extract[63:13] main@%_4_0)
+------------------------------------------------
