@@ -615,7 +615,7 @@ lemur nla TRACE
     lemur stats                            tag/function aggregates.
 """,
     "run-report": """lemur run-report [PREFIX] [--stdout FILE] [--stderr FILE] [--trace FILE]
-                           [-f plain|json]
+                           [--json | -f plain|json] [--summary]
 
   purpose: explain a saved Z3 run without rerunning the solver. Combine final
   stdout statistics, verbose stderr phases/search, and an optional text trace.
@@ -631,7 +631,8 @@ lemur nla TRACE
   examples:
     lemur sweep query.smt2 --z3 "$Z3" --seeds 0 --timeout 20 --stats --verbosity 10 --save out
     lemur run-report out/default_s0
-    lemur run-report out/default_s0 -f json > report.json
+    lemur run-report out/default_s0 --json --summary > summary.json
+    lemur run-report out/default_s0 --json > report.json
     jq '.engines, .warnings' report.json
     jq '.verbose[] | select(.kind == "phase" and .name == "bit-blast")' report.json
     jq '.statistics | with_entries(select(.key | startswith("array-")))' report.json
@@ -680,7 +681,22 @@ lemur nla TRACE
     attribution. Unknown layouts remain raw rather than guessed.
     Trace counts do not measure time; expression printing perturbs the run.
 
-  plain output: last progress per engine, first circuit, eight largest scope
+  --json is shorthand for --format json / -f json. These select the same full
+    evidence object; do not combine them. Default plain output is a human
+    summary, not a machine-readable serialization. Agents can start with
+    --json --summary, then use --json for full evidence and raw records.
+
+  --summary JSON schema v1: schema, detail="summary", inputs, verdict,
+    result_count, engines (search_observed, progress_rows, last_progress with
+    line/selected fields), first_circuit (line, complete, fields) or null,
+    largest_scopes [{name,line,duration_s,num_exprs}] (at most 8),
+    selected_statistics (BV/array/time/memory/resource counters) or null,
+    trace (bytes,records,incomplete_blocks,top_sites) or null,
+    unparsed_verbose_records, warnings, semantics. No raw log records.
+    Summary scope durations may overlap. Plain output is already a summary;
+    --summary does not change it. Full JSON remains unchanged.
+
+  plain output: selected last progress per engine, first circuit, eight largest scope
     durations, selected BV/array stats, trace summary, and missing-data notes.
     Use JSON for all records, final stats, source lines, and raw evidence.
   exit codes: 0 report emitted (including timeout/unknown); 1 input I/O error;

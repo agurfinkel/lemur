@@ -6,6 +6,7 @@ Reported scope durations can overlap; SAT elapsed time is search-local.
 """
 
 import re
+import textwrap
 from collections import Counter
 from pathlib import Path
 
@@ -246,34 +247,162 @@ def build_report(stdout=None, stderr=None, trace=None):
     }
 
 
+def summarize_report(report):
+    """Select compact structured findings; full reports retain raw evidence."""
+    engines = {}
+    for name, state in report["engines"].items():
+        last = state["last_progress"]
+        keys = (
+            "conflicts",
+            "decisions",
+            "restarts",
+            "propagations",
+            "search_elapsed_s",
+            "memory_mib",
+        )
+        engines[name] = {
+            "search_observed": state["search_observed"],
+            "progress_rows": state["progress_rows"],
+            "last_progress": None
+            if last is None
+            else {
+                "line": last["line_start"],
+                "fields": {k: last["fields"][k] for k in keys if k in last["fields"]},
+            },
+        }
+    circuits = [r for r in report["verbose"] if r["kind"] == "circuit"]
+    circuit = None
+    if circuits:
+        first = circuits[0]
+        circuit = {
+            "line": first["line_start"],
+            "complete": first["complete"],
+            "fields": first["fields"],
+        }
+    phases = [
+        r for r in report["verbose"] if r["kind"] == "phase" and "time" in r["fields"]
+    ]
+    phases = sorted(phases, key=lambda r: r["fields"]["time"], reverse=True)[:8]
+    stats = {
+        k: v
+        for k, v in (report["statistics"] or {}).items()
+        if k.startswith(("array-", "bv-"))
+        or k in ("time", "total-time", "max-memory", "rlimit-count")
+    }
+    trace = report["trace"]
+    return {
+        "schema": 1,
+        "detail": "summary",
+        "inputs": report["inputs"],
+        "verdict": report["verdict"],
+        "result_count": len(report["results"]),
+        "engines": engines,
+        "first_circuit": circuit,
+        "largest_scopes": [
+            {
+                "name": r["name"],
+                "line": r["line_start"],
+                "duration_s": r["fields"]["time"],
+                "num_exprs": r["fields"].get("num-exprs"),
+            }
+            for r in phases
+        ],
+        "selected_statistics": stats if report["statistics"] is not None else None,
+        "trace": None
+        if trace is None
+        else {
+            "bytes": trace["bytes"],
+            "records": trace["records"],
+            "incomplete_blocks": len(trace["incomplete"]),
+            "top_sites": trace["sites"][:8],
+        },
+        "unparsed_verbose_records": report["unparsed_verbose_records"],
+        "warnings": report["warnings"],
+        "semantics": report["semantics"],
+    }
+
+
 def render_plain(report):
+    """Render a human summary; JSON retains the complete evidence records."""
+
+    def number(value):
+        if isinstance(value, bool):
+            return "yes" if value else "no"
+        if isinstance(value, int):
+            return f"{value:,}"
+        if isinstance(value, float):
+            return f"{value:,.2f}"
+        return str(value)
+
+    def details(data):
+        for key, val in data.items():
+            label = {
+                "search_elapsed_s": "SAT elapsed (s)",
+                "memory_mib": "memory (MiB)",
+            }.get(key, key.replace("_", " "))
+            lines.append(f"    {label}: {number(val)}")
+
     lines = [f"Result: {report['verdict'] or 'not recorded'}"]
     for engine, data in report["engines"].items():
         observed = (
             "search observed" if data["search_observed"] else "tactic entry observed"
         )
-        lines.append(
-            f"Engine {engine.upper()}: {observed}; {data['progress_rows']} progress rows"
+        lines.extend(
+            [
+                "",
+                f"Engine {engine.upper()}: {observed}; {data['progress_rows']} progress rows",
+            ]
         )
         if last := data["last_progress"]:
-            lines.append(
-                f"  Last progress (stderr line {last['line_start']}): {last['fields']}"
+            lines.append(f"  Last progress (stderr line {last['line_start']}):")
+            keys = (
+                "conflicts",
+                "decisions",
+                "restarts",
+                "propagations",
+                "search_elapsed_s",
+                "memory_mib",
             )
+            details({k: last["fields"][k] for k in keys if k in last["fields"]})
     if not report["engines"]:
         lines.append("Engine: not established by verbose evidence")
     circuits = [r for r in report["verbose"] if r["kind"] == "circuit"]
     if circuits:
         first = circuits[0]
-        lines.append(
-            f"First SAT circuit snapshot (complete={first['complete']}): {first['fields']}"
+        state = "complete" if first["complete"] else "partial"
+        lines.extend(["", f"First SAT circuit snapshot ({state}):"])
+        labels = {
+            "vars": "allocated variables",
+            "elim-vars": "eliminated variables",
+            "binary-clauses": "binary clauses",
+            "ternary-clauses": "ternary clauses",
+            "clauses": "other clauses",
+            "memory": "memory MiB",
+        }
+        details(
+            {
+                label: first["fields"][key]
+                for key, label in labels.items()
+                if key in first["fields"]
+            }
         )
     phases = [
         r for r in report["verbose"] if r["kind"] == "phase" and "time" in r["fields"]
     ]
     if phases:
-        lines.append("Largest reported scope durations (may overlap; not additive):")
+        lines.extend(
+            [
+                "",
+                "Largest reported scope durations (may overlap; do not add):",
+                f"  {'Scope':<24} {'Seconds':>9} {'Expressions':>13} {'Line':>7}",
+            ]
+        )
         for row in sorted(phases, key=lambda r: r["fields"]["time"], reverse=True)[:8]:
-            lines.append(f"  line {row['line_start']} {row['name']}: {row['fields']}")
+            fields = row["fields"]
+            expressions = number(fields["num-exprs"]) if "num-exprs" in fields else "—"
+            lines.append(
+                f"  {row['name']:<24} {number(fields['time']):>9} {expressions:>13} {row['line_start']:>7}"
+            )
     important = {
         k: v
         for k, v in (report["statistics"] or {}).items()
@@ -281,18 +410,33 @@ def render_plain(report):
         or k in ("time", "total-time", "max-memory", "rlimit-count")
     }
     if important:
-        lines.append(f"Final statistics (absent counters are unknown): {important}")
+        lines.extend(["", "Selected final statistics (missing counters are unknown):"])
+        details(important)
     if trace := report["trace"]:
-        lines.append(
-            f"Trace: {trace['bytes']} bytes; records={trace['records']}; incomplete={len(trace['incomplete'])}"
+        lines.extend(
+            [
+                "",
+                f"Trace: {trace['bytes']:,} bytes; {len(trace['incomplete']):,} incomplete blocks",
+            ]
         )
+        details(trace["records"])
         for site in trace["sites"][:8]:
-            lines.append(f"  {site['tag']}/{site['function']}: {site['count']}")
-    lines.append(
-        f"Unparsed verbose records retained in JSON: {report['unparsed_verbose_records']}"
+            lines.append(f"    {site['tag']}/{site['function']}: {site['count']:,}")
+    lines.extend(
+        [
+            "",
+            f"Unparsed verbose records: {report['unparsed_verbose_records']:,} (preserved in JSON)",
+        ]
     )
-    lines.extend(f"Note: {warning}" for warning in report["warnings"])
-    lines.append(
-        "Times: scope durations may overlap; SAT progress time is search-local. Memory: tracked MiB, not RSS."
+    for warning in report["warnings"]:
+        lines.append(
+            textwrap.fill("Note: " + warning, width=88, subsequent_indent="  ")
+        )
+    lines.extend(
+        [
+            "",
+            "SAT elapsed time is search-local; memory is tracked MiB, not process RSS.",
+            "Use --json for full evidence, all counters, and source lines.",
+        ]
     )
     return "\n".join(lines)

@@ -125,6 +125,10 @@ def test_cli_prefix_json_and_explicit_paths():
     p = cli(str(FIXTURES / "timeout_sat"), "-f", "json")
     assert p.returncode == 0, p.stderr
     assert json.loads(p.stdout)["verdict"] == "timeout"
+    alias = cli(str(FIXTURES / "timeout_sat"), "--json")
+    assert alias.returncode == 0
+    assert json.loads(alias.stdout) == json.loads(p.stdout)
+    assert cli(str(FIXTURES / "timeout_sat"), "--json", "-f", "plain").returncode == 2
     p = cli("--stderr", str(FIXTURES / "timeout_smt.stderr"))
     assert p.returncode == 0
     assert "Result: not recorded" in p.stdout
@@ -156,3 +160,18 @@ def test_truncated_final_stats_does_not_reuse_old_block(tmp_path):
     out = tmp_path / "run.stdout"
     out.write_text("sat\n(:sat-decisions 10)\ntimeout\n(:rlimit-count 20\n")
     assert build_report(out)["statistics"] is None
+
+
+def test_compact_json_summary_keeps_findings_without_raw_logs():
+    full = json.loads(cli(str(FIXTURES / "timeout_sat"), "--json").stdout)
+    result = cli(str(FIXTURES / "timeout_sat"), "--json", "--summary")
+    assert result.returncode == 0
+    summary = json.loads(result.stdout)
+    assert summary["detail"] == "summary"
+    assert summary["verdict"] == full["verdict"]
+    assert summary["engines"]["sat"]["last_progress"]["fields"]["conflicts"] == 5675
+    assert summary["warnings"] == full["warnings"]
+    assert "verbose" not in summary
+    assert len(json.dumps(summary)) < len(json.dumps(full)) / 3
+    plain = cli(str(FIXTURES / "timeout_sat"))
+    assert cli(str(FIXTURES / "timeout_sat"), "--summary").stdout == plain.stdout
