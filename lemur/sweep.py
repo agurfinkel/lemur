@@ -30,6 +30,7 @@ from rich.progress import (
 )
 
 from lemur.smt_inject import make_split_smt
+from lemur.sweep_artifacts import preserve_input, solver_identity
 from lemur.table import SweepTable, make_console
 from lemur.z3_stats import parse_z3_stats  # noqa: F401  (re-export)
 
@@ -147,27 +148,29 @@ def run_single(
 
     cmdline = ""
     proc: subprocess.Popen | None = None
+    trace_dest = None
+    stdout, stderr = "", ""
+    timed_out = False
+    error = None
+    start = time.monotonic()
+    cmd = []
+    input_info = None
+    solver_info = None
     try:
+        # Solve the saved snapshot so its digest identifies the actual input.
+        if save_dir:
+            save_root = Path(save_dir).resolve()
+            input_info = preserve_input(Path(smt_file), save_root)
+            smt_file = str(save_root / input_info["path"])
+            solver_info = solver_identity(z3_bin)
         cmd = [z3_bin]
-
-        # Add trace tags
         if trace_tags:
-            for tag in trace_tags:
-                cmd.append(f"-tr:{tag}")
-
-        # Add config params
-        for k, v in config.params.items():
-            cmd.append(f"{k}={v}")
-
-        # Enable AST trace log if requested (writes to z3.log in CWD)
+            cmd.extend(f"-tr:{tag}" for tag in trace_tags)
+        cmd.extend(f"{k}={v}" for k, v in config.params.items())
         if z3_log:
             cmd.extend(["trace=true", "trace_file_name=z3.log"])
-
-        # Enable z3 statistics output
         if stats:
             cmd.append("-st")
-
-        # Add verbosity, seed, and timeout
         cmd.extend(
             [
                 f"-v:{verbosity}",
@@ -175,15 +178,14 @@ def run_single(
                 f"smt.random_seed={seed}",
                 f"nlsat.seed={seed}",
                 f"-T:{timeout}",
-                smt_file,
+                str(Path(smt_file).resolve()),
             ]
         )
-
+        # A relative executable path must survive the isolated solver cwd.
+        if os.path.dirname(z3_bin):
+            cmd[0] = str(Path(z3_bin).resolve())
         cmdline = shlex.join(cmd)
-
         start = time.monotonic()
-        # start_new_session puts z3 in its own process group so we can
-        # reliably kill it (and anything it spawns) on timeout or Ctrl-C.
         proc = subprocess.Popen(
             cmd,
             cwd=tmpdir,
@@ -194,106 +196,95 @@ def run_single(
         )
         try:
             stdout, stderr = proc.communicate(timeout=timeout + 10)
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as exc:
+            timed_out = True
             _kill_process_group(proc)
             try:
                 stdout, stderr = proc.communicate(timeout=2)
             except subprocess.TimeoutExpired:
-                stdout, stderr = "", ""
-            return RunResult(
-                config=config.name,
-                seed=seed,
-                status="timeout",
-                time_s=float(timeout),
-                stdout=stdout or "",
-                stderr=(stderr or "") + "\ntimeout (process killed)",
-                trace_file=None,
-                cmdline=cmdline,
-            )
-        elapsed = time.monotonic() - start
+                stdout, stderr = exc.output or "", exc.stderr or ""
+                if isinstance(stdout, bytes):
+                    stdout = stdout.decode(errors="replace")
+                if isinstance(stderr, bytes):
+                    stderr = stderr.decode(errors="replace")
+    except (KeyboardInterrupt, SystemExit):
+        if proc is not None:
+            _kill_process_group(proc)
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        _active_temp_dirs.discard(tmpdir)
+        raise
+    except Exception as exc:
+        if proc is not None:
+            _kill_process_group(proc)
+        error = str(exc)
 
-        # Parse status from stdout
-        out = stdout.strip()
-        first_line = out.split("\n")[0].strip() if out else ""
-        if first_line == "sat":
-            status = "sat"
-        elif first_line == "unsat":
-            status = "unsat"
-        elif first_line == "timeout":
-            status = "timeout"
-        elif first_line == "unknown":
-            status = "unknown"
-        else:
-            status = "error"
+    elapsed = time.monotonic() - start
+    first_line = stdout.strip().split("\n")[0].strip()
+    status = (
+        first_line if first_line in {"sat", "unsat", "unknown", "timeout"} else "error"
+    )
+    if timed_out:
+        status = "timeout"
+    elif error:
+        status = "error"
+    stats_data = parse_z3_stats(stdout) if stats else None
 
-        stats_data = parse_z3_stats(stdout) if stats else None
-
-        # Save outputs when --save is used
-        trace_dest = None
+    try:
         if save_dir:
-            save_stem = f"{split_name}.{config.name}" if split_name else config.name
-            # Append the suffix instead of replacing it: Path.with_suffix
-            # treats anything after the LAST `.` as a suffix and overwrites
-            # it. With config names containing dots (or split_name's
-            # trailing `.<config>` separator), `prefix.with_suffix('.stdout')`
-            # would drop the seed and the config and silently collide
-            # across seeds.
-            prefix = str(Path(save_dir) / f"{save_stem}_s{seed}")
-
-            # Trace file
-            trace_src = Path(tmpdir) / ".z3-trace"
-            if trace_src.exists() and trace_src.stat().st_size > 0:
-                trace_dest = Path(prefix + ".trace")
-                shutil.copy2(trace_src, trace_dest)
-
-            # stdout
-            if stdout.strip():
-                Path(prefix + ".stdout").write_text(stdout)
-
-            # stderr
-            if stderr.strip():
-                Path(prefix + ".stderr").write_text(stderr)
-
-            # z3 AST trace log
-            z3_log_src = Path(tmpdir) / "z3.log"
-            if z3_log_src.exists() and z3_log_src.stat().st_size > 0:
-                shutil.copy2(z3_log_src, Path(prefix + ".z3log"))
-
-            # Parsed z3 stats
+            save_root = Path(save_dir).resolve()
+            save_root.mkdir(parents=True, exist_ok=True)
+            # Append suffixes to preserve dotted configuration and split names.
+            stem = f"{name_tag}_s{seed}"
+            prefix = save_root / stem
+            artifacts = {}
+            for suffix, contents in (("stdout", stdout), ("stderr", stderr)):
+                dest = Path(str(prefix) + "." + suffix)
+                dest.write_text(contents)
+                artifacts[suffix] = dest.name
+            for source, suffix in ((".z3-trace", "trace"), ("z3.log", "z3log")):
+                src = Path(tmpdir) / source
+                if src.exists():
+                    dest = Path(str(prefix) + "." + suffix)
+                    shutil.copy2(src, dest)
+                    artifacts[suffix] = dest.name
+                    if suffix == "trace":
+                        trace_dest = dest
             if stats_data is not None:
-                Path(prefix + ".stats.json").write_text(
-                    json.dumps(stats_data, indent=2)
-                )
-
+                dest = Path(str(prefix) + ".stats.json")
+                dest.write_text(json.dumps(stats_data, indent=2) + "\n")
+                artifacts["stats"] = dest.name
+            replay_argv = cmd.copy()
+            if input_info and replay_argv:
+                replay_argv[-1] = input_info["path"]
+            manifest = {
+                "schema_version": 1,
+                "config": config.name,
+                "seed": seed,
+                "split": split_name,
+                "status": status,
+                "time_s": elapsed,
+                "returncode": proc.returncode if proc else None,
+                "timed_out_by_runner": timed_out,
+                "error": error,
+                "input": input_info,
+                "solver": solver_info,
+                "invocation": {"argv": cmd, "cwd": tmpdir},
+                "replay": {"argv": replay_argv, "cwd": "."},
+                "artifacts": artifacts,
+            }
+            Path(str(prefix) + ".run.json").write_text(
+                json.dumps(manifest, indent=2) + "\n"
+            )
         return RunResult(
             config=config.name,
             seed=seed,
             status=status,
             time_s=elapsed,
             stdout=stdout,
-            stderr=stderr,
+            stderr=stderr if not error else stderr + error,
             trace_file=trace_dest,
             cmdline=cmdline,
             stats=stats_data,
-            split=split_name,
-        )
-
-    except (KeyboardInterrupt, SystemExit):
-        if proc is not None:
-            _kill_process_group(proc)
-        raise
-    except Exception as e:
-        if proc is not None:
-            _kill_process_group(proc)
-        return RunResult(
-            config=config.name,
-            seed=seed,
-            status="error",
-            time_s=0.0,
-            stdout="",
-            stderr=str(e),
-            trace_file=None,
-            cmdline=cmdline,
             split=split_name,
         )
     finally:
@@ -556,6 +547,9 @@ def run_sweep(
 
     def process_result(result: RunResult) -> StopAction:
         """Record the result and return the appropriate StopAction."""
+        if splits and not save_dir:
+            # Injected inputs are temporary; replay requires --save.
+            result.cmdline = ""
         table.add_result(result.config, result.seed, result.status, result.time_s)
         all_results.append(result)
         status_counts[result.status] = status_counts.get(result.status, 0) + 1

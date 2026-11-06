@@ -112,13 +112,22 @@ lemur sweep BENCH.smt2 [...] | lemur sweep LEAVES_DIR/
     --no-color          disable color in rich output.
     --save DIR          per-run files written under DIR. Naming:
                           <config>_s<seed>.{stdout,stderr,trace,z3log,
-                                            stats.json}
+                                            stats.json,run.json}
                         without splits, or
                           <split>.<config>_s<seed>.{ext}
                         with --split or directory mode. The .trace
                         extension is only present if --trace was set;
                         .z3log only with --z3-log; .stats.json only with
                         --stats.
+    Saved replay: .run.json records version, argv, exit code, timeout and
+    input digest. inputs/<sha256>.smt2 retains exact solver input, including
+    generated splits; identical inputs share storage. Streams include empty
+    files. Use a fresh save directory to avoid overwriting run names.
+    From DIR, run the manifest replay.argv with cwd=replay.cwd (".").
+    The solver binary must still be available. invocation.cwd is historical.
+    Example: python -c 'import json, subprocess; m=json.load(open("default_s0.run.json")); subprocess.run(m["replay"]["argv"], cwd=m["replay"]["cwd"])'
+    Generated splits require --save for replay after temporary files vanish.
+
     --trace TAGS        comma-separated trace tags (e.g. nla_solver,nra).
                         Captures .z3-trace; with --save writes per run.
     --z3-log            enable z3 AST trace log (trace=true). Requires --save.
@@ -622,7 +631,8 @@ lemur nla TRACE
   Capture stderr with -v:10 (sweep --verbosity 10) for phase/progress detail.
 
   inputs:
-    PREFIX: discover existing PREFIX.stdout, PREFIX.stderr, PREFIX.trace.
+    PREFIX: discover existing PREFIX.stdout, PREFIX.stderr, PREFIX.trace, PREFIX.run.json.
+    --run-metadata FILE overrides discovery of the sweep manifest.
     Explicit file flags override discovery individually. At least one file
     must exist. Missing discovered siblings are allowed; missing explicit
     files are errors. Text traces use TRACE framing, not JSONL.
@@ -639,7 +649,15 @@ lemur nla TRACE
 
   JSON schema v1 (one object):
     schema: 1
-    inputs: {stdout, stderr, trace}: paths or null
+    inputs: {stdout, stderr, trace, run_metadata}: paths or null
+    run_metadata: saved sweep manifest or null
+    termination: {cause, reported_causes, evidence}; evidence includes stream,
+      line and text. Available metadata adds returncode, timed_out_by_runner,
+      configured_limits. Causes: out_of_memory, timeout, solver_error, signal,
+      process_error, multiple, result_reported, unknown.
+      A verdict is separate from termination. result_reported does not prove
+      clean exit; out_of_memory does not distinguish a configured cap from
+      host exhaustion. Both full JSON and --summary retain termination.
     verdict: sat|unsat|unknown|timeout|null (last result token)
     results: [{line, result}] in stdout order
     statistics: final -st dictionary or null; absent counters are UNKNOWN
@@ -903,7 +921,8 @@ lemur sgrep FILE.smt2 [PATTERN] [--apply TACTIC]
     --count         number of matches; exit.
     --list          one match per line.
     --distinct      --list with structurally-equal duplicates removed
-                    (deduped by str(match.expr) — exact AST identity).
+                    (same-context Z3 AST identity, never pretty-printed text).
+                    --list already visits each DAG node once; this is an alias.
 
   pattern syntax (note: pattern uses SMT-LIB head names — `ite`, `=`,
   `+`, `*`, `div`, `mod`; --show kind output uses z3-printer names —
