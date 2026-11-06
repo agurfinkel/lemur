@@ -1,7 +1,8 @@
-.venv/
+jjjjjjj.venv/
 __pycache__/
 *.pyc
 *.egg-info/
 dist/
 build/
 .z3-trace
+btf
