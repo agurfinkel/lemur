@@ -1,0 +1,13 @@
+# Conventional Commits (https://www.conventionalcommits.org/), checked by the
+# `commits` job of .github/workflows/ci.yml: `type(scope): subject`, header
+# at most 72 characters (shared with Sea-MLIR). Types: build, chore, ci, docs,
+# feat, fix, perf, refactor, revert, style, test. Body and footer lines may
+# be long (logs, URLs, Dependabot's notes). Any subject case: subjects
+# often start with a name (LLVM, MLIR, CI, Dockerfile).
+extends:
+  - "@commitlint/config-conventional"
+rules:
+  header-max-length: [2, always, 72]
+  body-max-line-length: [0]
+  footer-max-line-length: [0]
+  subject-case: [0]

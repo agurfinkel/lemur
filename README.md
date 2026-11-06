@@ -39,7 +39,7 @@ requires a separate Z3 executable.
 
 ## Development checks
 
-Pull requests and pushes run Ruff lint/import checks, Ruff formatting, and
+Pull requests and pushes to `main` run Ruff lint/import checks, Ruff formatting, and
 pytest on Python 3.11 and 3.14 with all optional extras. CI also builds the
 wheel and source archive.
 
@@ -52,6 +52,13 @@ uv run ruff format --check .
 uv run pytest -q
 uv build
 ```
+
+Commits follow Conventional Commits, using the same commitlint rules as
+Sea-MLIR: `type(scope): subject` (scope optional), at most 72 characters in
+the header. Allowed types are `build`, `chore`, `ci`, `docs`, `feat`, `fix`,
+`perf`, `refactor`, `revert`, `style`, and `test`. Subject case and body/footer
+line lengths are unrestricted. CI checks every commit in a PR, not just its
+title. Example: `fix(parser): handle empty trace blocks`.
 
 Use `uv run ruff check --fix .` and `uv run ruff format .` to apply safe
 lint fixes and formatting before committing.

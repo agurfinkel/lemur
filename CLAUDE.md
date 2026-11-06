@@ -71,5 +71,9 @@ AST trace log (`z3.log`): line-oriented `[event-type] data`. Enabled by `trace=t
 
 ## Before committing
 
+Use Conventional Commits (`type(scope): subject`, scope optional), with a
+header of at most 72 characters; see `.commitlintrc.yml`. CI checks each
+commit in the PR. Use a `style:` commit for formatting-only changes.
+
 Run `uv run ruff check .`, `uv run ruff format --check .`, and `uv run pytest`.
 Use `uv run ruff format .` to format code. CI repeats these checks on PRs.
