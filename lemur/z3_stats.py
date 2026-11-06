@@ -1,7 +1,7 @@
 """
 Parsers for `z3 -st` output.
 
-z3 with `-st` prints a result line (sat / unsat / unknown) followed by a
+z3 with `-st` prints a result line (sat / unsat / unknown / timeout) followed by a
 trailing S-expression of statistics:
 
     unsat
@@ -16,9 +16,9 @@ sweep.py's process-pool / progress-bar machinery.
 
 import re
 
-_STATS_BLOCK_RE = re.compile(r"\(\s*(:[\s\S]+?)\)\s*\Z")
+_STATS_BLOCK_RE = re.compile(r"\(\s*(:[^()]*)\)\s*\Z")
 _STATS_KV_RE = re.compile(r":([\w\-.]+)\s+(\S+)")
-_RESULT_RE = re.compile(r"^(sat|unsat|unknown)\s*$", re.MULTILINE)
+_RESULT_RE = re.compile(r"^(sat|unsat|unknown|timeout)\s*$", re.MULTILINE)
 
 
 def parse_z3_stats(stdout: str) -> dict | None:
@@ -47,7 +47,7 @@ def parse_z3_run(stdout: str) -> tuple[str | None, dict | None]:
     """Parse a single z3 `-st` invocation's stdout.
 
     Returns `(result, stats)`:
-      - result: 'sat', 'unsat', 'unknown', or None when no recognizable
+      - result: 'sat', 'unsat', 'unknown', 'timeout', or None when no recognizable
         line precedes the stats block. For multi-(check-sat) outputs the
         last result token before the stats block is returned.
       - stats: dict from `parse_z3_stats`, or None.

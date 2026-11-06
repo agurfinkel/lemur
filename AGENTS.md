@@ -48,6 +48,12 @@ Original records preserve every input byte. Optional recognizers add derived
 records referencing the original event IDs. Agent help includes Sea-MLIR BV
 capture commands, jq searches, and the recognizer pipeline API.
 
+## lemur run-report: explain saved Z3 runs
+
+`lemur run-report out/default_s0` reads sweep artifacts; `-f json` retains all
+phase/progress records and source lines. Capture with `--stats --verbosity 10`.
+Use `lemur run-report --agent` for schema and timer/counter semantics.
+
 ## lemur stats: analyze .z3-trace files
 
 ```

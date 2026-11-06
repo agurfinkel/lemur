@@ -614,6 +614,78 @@ lemur nla TRACE
     lemur search                           grep / filter the same trace.
     lemur stats                            tag/function aggregates.
 """,
+    "run-report": """lemur run-report [PREFIX] [--stdout FILE] [--stderr FILE] [--trace FILE]
+                           [-f plain|json]
+
+  purpose: explain a saved Z3 run without rerunning the solver. Combine final
+  stdout statistics, verbose stderr phases/search, and an optional text trace.
+  Capture stderr with -v:10 (sweep --verbosity 10) for phase/progress detail.
+
+  inputs:
+    PREFIX: discover existing PREFIX.stdout, PREFIX.stderr, PREFIX.trace.
+    Explicit file flags override discovery individually. At least one file
+    must exist. Missing discovered siblings are allowed; missing explicit
+    files are errors. Text traces use TRACE framing, not JSONL.
+    Files need to describe the same run; the report cannot verify provenance.
+
+  examples:
+    lemur sweep query.smt2 --z3 "$Z3" --seeds 0 --timeout 20 --stats --verbosity 10 --save out
+    lemur run-report out/default_s0
+    lemur run-report out/default_s0 -f json > report.json
+    jq '.engines, .warnings' report.json
+    jq '.verbose[] | select(.kind == "phase" and .name == "bit-blast")' report.json
+    jq '.statistics | with_entries(select(.key | startswith("array-")))' report.json
+
+  JSON schema v1 (one object):
+    schema: 1
+    inputs: {stdout, stderr, trace}: paths or null
+    verdict: sat|unsat|unknown|timeout|null (last result token)
+    results: [{line, result}] in stdout order
+    statistics: final -st dictionary or null; absent counters are UNKNOWN
+    engines: keyed by sat/smt, only when verbose evidence establishes entry
+      {search_observed, first_evidence_line, progress_rows, last_progress}
+    verbose: ordered records, each with line_start, line_end, raw and kind:
+      phase: name, fields (original Z3 key names, e.g. num-exprs/time)
+      engine: engine, event=tactic_start|search_start
+      progress: engine, fields (normalized names, below)
+      circuit: engine=sat, complete, fields (original sat-status key names)
+      header: engine
+      unparsed: optional reason=unknown_progress_layout
+    unparsed_verbose_records: count (records remain in verbose)
+    trace: null or {bytes, records:{trace?,raw?}, sites:[{tag,function,
+      source_file,count}], incomplete:[{seq,tag,reason,span}]}
+    warnings: [string]; semantics: interpretation notes
+
+  progress fields:
+    SAT: conflicts, decisions, restarts, given_clauses,
+      given_binary_clauses, learned_clauses, learned_binary_clauses,
+      base_units, gc_clauses, optional memory_mib/search_elapsed_s.
+    SMT: restarts, conflicts, decisions, propagations,
+      auxiliary_and_binary_clauses, binary_clauses, base_units,
+      lemmas, binary_lemmas, simplifications, deleted_clauses,
+      optional memory_mib. SMT rows carry NO elapsed time.
+    Binary counts are included in totals, not added to them.
+
+  interpretation:
+    SAT progress proves search entry even if a hard timeout leaves the SAT
+    tactic's final statistics cache empty/stale. No counters ≠ no search.
+    Phase time is a scope duration, not a timestamp. Scopes may overlap and
+    report on exception unwinding; never sum them as total runtime.
+    SAT elapsed time is search-local, includes inprocessing, and can reset.
+    num-asts covers the AST manager, not just the goal DAG. Memory is Z3's
+    tracked MiB, not RSS. Inventories can shrink across progress snapshots.
+    sat-status 'clauses' excludes binary/ternary categories; first observed
+    circuit is not necessarily the initial circuit when logs are partial.
+    Multiple checks are retained together; result is last, no per-check
+    attribution. Unknown layouts remain raw rather than guessed.
+    Trace counts do not measure time; expression printing perturbs the run.
+
+  plain output: last progress per engine, first circuit, eight largest scope
+    durations, selected BV/array stats, trace summary, and missing-data notes.
+    Use JSON for all records, final stats, source lines, and raw evidence.
+  exit codes: 0 report emitted (including timeout/unknown); 1 input I/O error;
+    2 no input/argument error. --agent does not require input files.
+""",
     "export": r"""lemur export TRACE [-o EVENTS.jsonl] [--recognizer bv] [--format jsonl]
 
   purpose: preserve a .z3-trace as an ordered JSONL event stream. Query it

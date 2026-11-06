@@ -7,6 +7,7 @@ from lemur.cli import (
     agent_help,
     export,
     nla,
+    run_report,
     search,
     split_status,
     stats,
@@ -37,6 +38,7 @@ def main():
     sub = parser.add_subparsers(dest="command")
 
     export.register(sub)
+    run_report.register(sub)
     sweep.register(sub)
     stats.register(sub)
     nla.register(sub)

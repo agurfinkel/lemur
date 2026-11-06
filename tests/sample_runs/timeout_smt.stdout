@@ -1,0 +1,32 @@
+timeout
+(:added-eqs           1753967
+ :arith-make-feasible 1
+ :arith-max-columns   4
+ :array-ax1           503
+ :array-ax2           582830
+ :array-ext-ax        221
+ :binary-propagations 5675954
+ :bv-bit2core         303618
+ :bv-diseqs           80841
+ :bv-dynamic-diseqs   10382
+ :bv-dynamic-eqs      149
+ :bv->core-eq         70221
+ :conflicts           839
+ :decisions           38597
+ :del-clause          1745429
+ :elim-unconstrained  295
+ :max-memory          529.50
+ :memory              528.86
+ :minimized-lits      8809
+ :mk-bool-var         6609258
+ :mk-clause           2212200
+ :mk-clause-binary    395944
+ :num-allocs          8003154155.00
+ :num-checks          1
+ :propagations        12606952
+ :restarts            7
+ :rlimit-count        20214261
+ :solve-eqs-elim-vars 8
+ :solve-eqs-steps     8
+ :time                19.93
+ :total-time          20.00)
