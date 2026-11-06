@@ -10,20 +10,19 @@ STRACE entries have no header/footer — they are not parsed by this module.
 """
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterator, TextIO
 
 # Matches: -------- [TAG] function_name /path/file.cpp:LINE ---------
-HEADER_RE = re.compile(
-    r'^-{8} \[([^\]]+)\] (\S+) (.+?):(\d+) -{9}$'
-)
-FOOTER_RE = re.compile(r'^-{48}$')
+HEADER_RE = re.compile(r"^-{8} \[([^\]]+)\] (\S+) (.+?):(\d+) -{9}$")
+FOOTER_RE = re.compile(r"^-{48}$")
 
 
 @dataclass
 class TraceEntry:
     """A single trace block parsed from a .z3-trace file."""
+
     tag: str
     function: str
     source_file: str
@@ -42,7 +41,7 @@ def parse_trace(source: TextIO | str | Path) -> Iterator[TraceEntry]:
     Skips lines that don't belong to a recognized header/footer structure.
     """
     if isinstance(source, (str, Path)):
-        with open(source, 'r', errors='replace') as f:
+        with open(source, "r", errors="replace") as f:
             yield from _parse_stream(f)
     else:
         yield from _parse_stream(source)
@@ -56,7 +55,7 @@ def _parse_stream(f: TextIO) -> Iterator[TraceEntry]:
     in_block = False
 
     for line_num, raw_line in enumerate(f, 1):
-        line = raw_line.rstrip('\n')
+        line = raw_line.rstrip("\n")
 
         if not in_block:
             m = HEADER_RE.match(line)
@@ -75,7 +74,7 @@ def _parse_stream(f: TextIO) -> Iterator[TraceEntry]:
                     function=function,
                     source_file=source_file,
                     source_line=source_line,
-                    body='\n'.join(body_lines),
+                    body="\n".join(body_lines),
                     line_number=header_line_num,
                 )
                 in_block = False
@@ -91,7 +90,9 @@ def filter_by_tag(entries: Iterator[TraceEntry], *tags: str) -> Iterator[TraceEn
             yield entry
 
 
-def filter_by_function(entries: Iterator[TraceEntry], *functions: str) -> Iterator[TraceEntry]:
+def filter_by_function(
+    entries: Iterator[TraceEntry], *functions: str
+) -> Iterator[TraceEntry]:
     """Filter trace entries to only those matching given function names."""
     func_set = set(functions)
     for entry in entries:
@@ -118,9 +119,7 @@ def group_by_function(entries: list[TraceEntry]) -> dict[str, list[TraceEntry]]:
 # --- Varmap parsing ---
 
 # Matches entries like: j25=103: R21  or  _t95=257: (+ -1 R76 R83)
-_VARMAP_ENTRY_RE = re.compile(
-    r'([A-Za-z_]\w*)=\d+:\s+(.*?)(?=\s+[A-Za-z_]\w+=\d+:|$)'
-)
+_VARMAP_ENTRY_RE = re.compile(r"([A-Za-z_]\w*)=\d+:\s+(.*?)(?=\s+[A-Za-z_]\w+=\d+:|$)")
 
 
 def parse_varmap_line(line: str) -> dict[str, str]:
@@ -129,10 +128,10 @@ def parse_varmap_line(line: str) -> dict[str, str]:
     Line format: varmap: j25=103: R21 j28=113: (div R20 R21) ...
     Returns empty dict if the line isn't a varmap line.
     """
-    prefix = 'varmap:'
+    prefix = "varmap:"
     if not line.startswith(prefix):
         return {}
-    payload = line[len(prefix):]
+    payload = line[len(prefix) :]
     result: dict[str, str] = {}
     for m in _VARMAP_ENTRY_RE.finditer(payload):
         var_name = m.group(1)
@@ -152,6 +151,6 @@ def collect_varmap(entries: list[TraceEntry]) -> dict[str, str]:
     for entry in entries:
         for line in entry.body_lines():
             stripped = line.strip()
-            if stripped.startswith('varmap:'):
+            if stripped.startswith("varmap:"):
                 varmap.update(parse_varmap_line(stripped))
     return varmap

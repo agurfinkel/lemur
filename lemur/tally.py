@@ -36,10 +36,10 @@ class Tally:
 
 
 def _result_fields(r):
-    if hasattr(r, 'config'):
-        return (r.config, r.seed, r.status, r.time_s, getattr(r, 'split', None))
+    if hasattr(r, "config"):
+        return (r.config, r.seed, r.status, r.time_s, getattr(r, "split", None))
     if isinstance(r, dict):
-        return (r['config'], r['seed'], r['status'], r['time_s'], r.get('split'))
+        return (r["config"], r["seed"], r["status"], r["time_s"], r.get("split"))
     # legacy tuple
     if len(r) >= 5:
         return r[0], r[1], r[2], r[3], r[4]
@@ -66,17 +66,17 @@ def compute_tally(results) -> Tally:
             by_key[key] = row
             rows.append(row)
         row.total += 1
-        if status == 'sat':
+        if status == "sat":
             row.sat += 1
             if row.fastest_sat is None or time_s < row.fastest_sat[0]:
                 row.fastest_sat = (float(time_s), int(seed))
-        elif status == 'unsat':
+        elif status == "unsat":
             row.unsat += 1
             if row.fastest_unsat is None or time_s < row.fastest_unsat[0]:
                 row.fastest_unsat = (float(time_s), int(seed))
-        elif status == 'timeout':
+        elif status == "timeout":
             row.timeout += 1
-        elif status == 'unknown':
+        elif status == "unknown":
             row.unknown += 1
         else:
             row.error += 1
@@ -85,7 +85,7 @@ def compute_tally(results) -> Tally:
 
 def _fmt_fastest(val: tuple[float, int] | None) -> str:
     if val is None:
-        return 'n/a'
+        return "n/a"
     time_s, seed = val
     return f"{time_s:.3f}s (seed {seed})"
 
@@ -106,18 +106,20 @@ def render_rich(tally: Tally, console: Console) -> None:
     for row in tally.rows:
         cells = []
         if tally.has_splits:
-            cells.append(row.split or '')
-        cells.extend([
-            row.config,
-            str(row.total),
-            str(row.sat),
-            str(row.unsat),
-            str(row.timeout),
-            str(row.unknown),
-            str(row.error),
-            _fmt_fastest(row.fastest_sat),
-            _fmt_fastest(row.fastest_unsat),
-        ])
+            cells.append(row.split or "")
+        cells.extend(
+            [
+                row.config,
+                str(row.total),
+                str(row.sat),
+                str(row.unsat),
+                str(row.timeout),
+                str(row.unknown),
+                str(row.error),
+                _fmt_fastest(row.fastest_sat),
+                _fmt_fastest(row.fastest_unsat),
+            ]
+        )
         table.add_row(*cells)
     console.print(table)
 
@@ -129,9 +131,9 @@ def render_rich(tally: Tally, console: Console) -> None:
 def _render_split_summary(tally: Tally, console: Console) -> None:
     by_split: dict[str, dict] = {}
     for row in tally.rows:
-        s = by_split.setdefault(row.split or '', {'sat': 0, 'unsat': 0})
-        s['sat'] += row.sat
-        s['unsat'] += row.unsat
+        s = by_split.setdefault(row.split or "", {"sat": 0, "unsat": 0})
+        s["sat"] += row.sat
+        s["unsat"] += row.unsat
     all_closed = True
     summary = Table(title="Splits", pad_edge=True)
     summary.add_column("split", style="bold magenta")
@@ -139,17 +141,22 @@ def _render_split_summary(tally: Tally, console: Console) -> None:
     summary.add_column("unsat", justify="right", style="cyan")
     summary.add_column("closed?")
     for split, counts in by_split.items():
-        closed = counts['sat'] + counts['unsat'] > 0
+        closed = counts["sat"] + counts["unsat"] > 0
         all_closed = all_closed and closed
         summary.add_row(
-            split, str(counts['sat']), str(counts['unsat']),
+            split,
+            str(counts["sat"]),
+            str(counts["unsat"]),
             "[green]yes[/green]" if closed else "[red]no[/red]",
         )
     console.print(summary)
     console.print(
         "[bold]disjunction of splits: "
-        + ("[green]all closed[/green][/bold]" if all_closed
-           else "[red]incomplete[/red][/bold]")
+        + (
+            "[green]all closed[/green][/bold]"
+            if all_closed
+            else "[red]incomplete[/red][/bold]"
+        )
     )
 
 
@@ -158,23 +165,44 @@ def to_csv(tally: Tally) -> str:
     w = csv.writer(buf)
     header = []
     if tally.has_splits:
-        header.append('split')
-    header.extend(['config', 'total', 'sat', 'unsat', 'timeout', 'unknown',
-                   'error', 'fastest_sat_time_s', 'fastest_sat_seed',
-                   'fastest_unsat_time_s', 'fastest_unsat_seed'])
+        header.append("split")
+    header.extend(
+        [
+            "config",
+            "total",
+            "sat",
+            "unsat",
+            "timeout",
+            "unknown",
+            "error",
+            "fastest_sat_time_s",
+            "fastest_sat_seed",
+            "fastest_unsat_time_s",
+            "fastest_unsat_seed",
+        ]
+    )
     w.writerow(header)
     for row in tally.rows:
         fs = row.fastest_sat
         fu = row.fastest_unsat
         rec = []
         if tally.has_splits:
-            rec.append(row.split or '')
-        rec.extend([
-            row.config, row.total, row.sat, row.unsat, row.timeout,
-            row.unknown, row.error,
-            f"{fs[0]:.3f}" if fs else '', fs[1] if fs else '',
-            f"{fu[0]:.3f}" if fu else '', fu[1] if fu else '',
-        ])
+            rec.append(row.split or "")
+        rec.extend(
+            [
+                row.config,
+                row.total,
+                row.sat,
+                row.unsat,
+                row.timeout,
+                row.unknown,
+                row.error,
+                f"{fs[0]:.3f}" if fs else "",
+                fs[1] if fs else "",
+                f"{fu[0]:.3f}" if fu else "",
+                fu[1] if fu else "",
+            ]
+        )
         w.writerow(rec)
     return buf.getvalue()
 
@@ -185,18 +213,18 @@ def to_json(tally: Tally) -> str:
         fs = row.fastest_sat
         fu = row.fastest_unsat
         d = {
-            'config': row.config,
-            'total': row.total,
-            'sat': row.sat,
-            'unsat': row.unsat,
-            'timeout': row.timeout,
-            'unknown': row.unknown,
-            'error': row.error,
-            'fastest_sat': {'time_s': round(fs[0], 3), 'seed': fs[1]} if fs else None,
-            'fastest_unsat': {'time_s': round(fu[0], 3), 'seed': fu[1]} if fu else None,
+            "config": row.config,
+            "total": row.total,
+            "sat": row.sat,
+            "unsat": row.unsat,
+            "timeout": row.timeout,
+            "unknown": row.unknown,
+            "error": row.error,
+            "fastest_sat": {"time_s": round(fs[0], 3), "seed": fs[1]} if fs else None,
+            "fastest_unsat": {"time_s": round(fu[0], 3), "seed": fu[1]} if fu else None,
         }
         if tally.has_splits:
-            d['split'] = row.split
+            d["split"] = row.split
         data.append(d)
     return json.dumps(data, indent=2)
 
@@ -204,24 +232,24 @@ def to_json(tally: Tally) -> str:
 def read_sweep_csv(path: str) -> list[dict]:
     """Read a sweep CSV (columns: config,seed,status,time_s, optional split)."""
     rows = []
-    with open(path, newline='') as f:
+    with open(path, newline="") as f:
         reader = csv.DictReader(f)
-        required = {'config', 'seed', 'status', 'time_s'}
+        required = {"config", "seed", "status", "time_s"}
         missing = required - set(reader.fieldnames or [])
         if missing:
             raise ValueError(
                 f"{path}: missing columns {sorted(missing)}; "
                 f"expected sweep CSV with columns {sorted(required)}"
             )
-        has_split = 'split' in (reader.fieldnames or [])
+        has_split = "split" in (reader.fieldnames or [])
         for r in reader:
             row = {
-                'config': r['config'],
-                'seed': int(r['seed']),
-                'status': r['status'],
-                'time_s': float(r['time_s']),
+                "config": r["config"],
+                "seed": int(r["seed"]),
+                "status": r["status"],
+                "time_s": float(r["time_s"]),
             }
-            if has_split and r.get('split'):
-                row['split'] = r['split']
+            if has_split and r.get("split"):
+                row["split"] = r["split"]
             rows.append(row)
     return rows

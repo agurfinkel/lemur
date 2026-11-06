@@ -28,6 +28,7 @@ from typing import Iterable
 def _import_z3():
     try:
         import z3
+
         return z3
     except ImportError:
         raise SystemExit(
@@ -39,13 +40,13 @@ def _import_z3():
 # --- Pattern AST -------------------------------------------------------------
 
 
-_TYPE_FILTERS = ('Bool', 'Numeral', 'Var', 'Expr', 'Eq', 'Comparison')
+_TYPE_FILTERS = ("Bool", "Numeral", "Var", "Expr", "Eq", "Comparison")
 
 
 @dataclass
 class PWild:
-    type_filter: str | None = None   # None = no filter; 'Expr' is also no-op
-    negate: bool = False             # invert the type-filter result
+    type_filter: str | None = None  # None = no filter; 'Expr' is also no-op
+    negate: bool = False  # invert the type-filter result
 
 
 @dataclass
@@ -67,6 +68,7 @@ class PNumeral:
     decl names are sort names ('Int', 'bv', 'Real') rather than the
     value itself, so a bare numeric token in the pattern can't be
     handled as a 0-arity PCompound — needs a value-comparison match."""
+
     value: int
 
 
@@ -80,7 +82,7 @@ class PatternError(ValueError):
     pass
 
 
-_TOKEN_RE = re.compile(r'\(|\)|[^()\s]+|\s+')
+_TOKEN_RE = re.compile(r"\(|\)|[^()\s]+|\s+")
 
 
 def _tokenize(s: str) -> list[str]:
@@ -112,30 +114,33 @@ def _parse_atom(tok: str) -> PNode:
     """
     s = tok
     outer_neg = False
-    if s.startswith('!'):
+    if s.startswith("!"):
         outer_neg = True
         s = s[1:]
         if not s:
             raise PatternError(f"`!` with nothing to negate: {tok!r}")
 
     # Capture or wildcard?
-    if s.startswith('?'):
+    if s.startswith("?"):
         body = s[1:]
         name, type_filter, inner_neg = _split_type_part(body, tok)
         if not name:
             raise PatternError(f"empty capture name: {tok!r}")
-        return PCapture(name=name, type_filter=type_filter,
-                        negate=outer_neg ^ inner_neg)
-    if s == '_' or s.startswith('_:'):
-        body = '' if s == '_' else s[2:]
-        name, type_filter, inner_neg = _split_type_part('_' + (':' + body if body else ''), tok)
+        return PCapture(
+            name=name, type_filter=type_filter, negate=outer_neg ^ inner_neg
+        )
+    if s == "_" or s.startswith("_:"):
+        body = "" if s == "_" else s[2:]
+        name, type_filter, inner_neg = _split_type_part(
+            "_" + (":" + body if body else ""), tok
+        )
         # name is '_' here; ignore. Build wildcard.
         return PWild(type_filter=type_filter, negate=outer_neg ^ inner_neg)
 
     # Bare literal symbol — outer negation is meaningless.
     if outer_neg:
         raise PatternError(f"`!` only applies to wildcards/captures: {tok!r}")
-    if ':' in s:
+    if ":" in s:
         raise PatternError(f"type filter `:` not allowed on literal name: {tok!r}")
     if _is_int_token(s):
         return PNumeral(value=int(s))
@@ -145,7 +150,7 @@ def _parse_atom(tok: str) -> PNode:
 def _is_int_token(s: str) -> bool:
     if not s:
         return False
-    if s[0] == '-':
+    if s[0] == "-":
         return len(s) > 1 and s[1:].isdigit()
     return s.isdigit()
 
@@ -157,19 +162,20 @@ def _split_type_part(body: str, orig_tok: str) -> tuple[str, str | None, bool]:
     The body has already had the outer `!` and the leading `?` (if any)
     stripped. For wildcards, body starts with `_`.
     """
-    if ':' not in body:
+    if ":" not in body:
         return body, None, False
-    name, _, type_part = body.partition(':')
+    name, _, type_part = body.partition(":")
     inner_neg = False
-    if type_part.startswith('!'):
+    if type_part.startswith("!"):
         inner_neg = True
         type_part = type_part[1:]
     if type_part not in _TYPE_FILTERS:
         raise PatternError(
             f"unknown type filter {type_part!r} in {orig_tok!r}; "
-            f"expected one of {', '.join(_TYPE_FILTERS)}")
+            f"expected one of {', '.join(_TYPE_FILTERS)}"
+        )
     # Treat 'Expr' as 'no filter' (it's the documented default).
-    tf = None if type_part == 'Expr' else type_part
+    tf = None if type_part == "Expr" else type_part
     return name, tf, inner_neg
 
 
@@ -186,30 +192,35 @@ def parse_pattern(s: str) -> PNode:
             raise PatternError("unexpected end of pattern")
         t = toks[pos[0]]
         pos[0] += 1
-        if t == '(':
+        if t == "(":
             if pos[0] >= len(toks):
                 raise PatternError("missing head after '('")
             head = toks[pos[0]]
-            if (head in ('(', ')') or head.startswith('?') or head == '_'
-                    or head.startswith('!') or ':' in head):
+            if (
+                head in ("(", ")")
+                or head.startswith("?")
+                or head == "_"
+                or head.startswith("!")
+                or ":" in head
+            ):
                 raise PatternError(
-                    f"compound head must be a literal symbol, got {head!r}")
+                    f"compound head must be a literal symbol, got {head!r}"
+                )
             pos[0] += 1
             children: list[PNode] = []
-            while pos[0] < len(toks) and toks[pos[0]] != ')':
+            while pos[0] < len(toks) and toks[pos[0]] != ")":
                 children.append(parse())
             if pos[0] >= len(toks):
                 raise PatternError(f"unclosed '(' at head {head!r}")
             pos[0] += 1  # consume ')'
             return PCompound(head=head, children=children)
-        if t == ')':
+        if t == ")":
             raise PatternError("unexpected ')'")
         return _parse_atom(t)
 
     node = parse()
     if pos[0] != len(toks):
-        raise PatternError(
-            f"trailing tokens after pattern: {' '.join(toks[pos[0]:])}")
+        raise PatternError(f"trailing tokens after pattern: {' '.join(toks[pos[0] :])}")
     return node
 
 
@@ -220,7 +231,7 @@ def parse_pattern(s: str) -> PNode:
 # (and, or, =, +, -, *, div, mod, <, <=, >=, =>, ...) match SMT-LIB names
 # directly. Add aliases here as more crop up; keep narrow.
 _HEAD_ALIASES = {
-    'ite': 'if',
+    "ite": "if",
 }
 
 
@@ -229,19 +240,30 @@ def _check_type(z3, e, tf: str | None) -> bool:
     no filter (always passes)."""
     if tf is None:
         return True
-    if tf == 'Bool':
+    if tf == "Bool":
         return e.sort().kind() == z3.Z3_BOOL_SORT
-    if tf == 'Numeral':
-        return (z3.is_int_value(e) or z3.is_rational_value(e)
-                or z3.is_bv_value(e) or z3.is_algebraic_value(e))
-    if tf == 'Var':
-        return (z3.is_app(e) and e.decl().arity() == 0
-                and e.decl().kind() == z3.Z3_OP_UNINTERPRETED)
-    if tf == 'Eq':
+    if tf == "Numeral":
+        return (
+            z3.is_int_value(e)
+            or z3.is_rational_value(e)
+            or z3.is_bv_value(e)
+            or z3.is_algebraic_value(e)
+        )
+    if tf == "Var":
+        return (
+            z3.is_app(e)
+            and e.decl().arity() == 0
+            and e.decl().kind() == z3.Z3_OP_UNINTERPRETED
+        )
+    if tf == "Eq":
         return z3.is_app(e) and e.decl().kind() == z3.Z3_OP_EQ
-    if tf == 'Comparison':
-        return (z3.is_app(e) and e.decl().kind() in (
-            z3.Z3_OP_LT, z3.Z3_OP_LE, z3.Z3_OP_GT, z3.Z3_OP_GE))
+    if tf == "Comparison":
+        return z3.is_app(e) and e.decl().kind() in (
+            z3.Z3_OP_LT,
+            z3.Z3_OP_LE,
+            z3.Z3_OP_GT,
+            z3.Z3_OP_GE,
+        )
     raise AssertionError(f"unknown type filter: {tf!r}")
 
 
@@ -282,8 +304,7 @@ def match(z3, p: PNode, e, env: dict[str, object]) -> bool:
             return e.as_long() == p.value
         if z3.is_rational_value(e):
             try:
-                return (e.denominator_as_long() == 1
-                        and e.numerator_as_long() == p.value)
+                return e.denominator_as_long() == 1 and e.numerator_as_long() == p.value
             except Exception:
                 return False
         return False
@@ -295,8 +316,8 @@ def match(z3, p: PNode, e, env: dict[str, object]) -> bool:
 
 @dataclass
 class Match:
-    expr: object               # z3 ExprRef
-    captures: dict[str, object] # capture name -> z3 ExprRef
+    expr: object  # z3 ExprRef
+    captures: dict[str, object]  # capture name -> z3 ExprRef
 
 
 def find_matches(z3, p: PNode, roots: Iterable) -> list[Match]:
@@ -340,24 +361,23 @@ def parse_tactic(z3, s: str):
     if not s:
         raise TacticParseError("empty tactic string")
     toks = _tokenize(s)
-    if toks and toks[0] != '(':
-        if len(toks) != 1 or toks[0] in ('(', ')'):
+    if toks and toks[0] != "(":
+        if len(toks) != 1 or toks[0] in ("(", ")"):
             raise TacticParseError(f"unexpected tokens: {toks!r}")
         return z3.Tactic(toks[0])
     # Expect (then NAME NAME ...)
-    if len(toks) < 4 or toks[0] != '(' or toks[-1] != ')':
+    if len(toks) < 4 or toks[0] != "(" or toks[-1] != ")":
+        raise TacticParseError(f"expected NAME or '(then NAME ...)', got: {s!r}")
+    if toks[1] != "then":
         raise TacticParseError(
-            f"expected NAME or '(then NAME ...)', got: {s!r}")
-    if toks[1] != 'then':
-        raise TacticParseError(
-            f"only `then` combinator supported in v1, got {toks[1]!r}")
+            f"only `then` combinator supported in v1, got {toks[1]!r}"
+        )
     names = toks[2:-1]
     if not names:
         raise TacticParseError("`(then ...)` needs at least one tactic")
     for n in names:
-        if n in ('(', ')'):
-            raise TacticParseError(
-                f"nested combinators not supported in v1: {s!r}")
+        if n in ("(", ")"):
+            raise TacticParseError(f"nested combinators not supported in v1: {s!r}")
     if len(names) == 1:
         return z3.Tactic(names[0])
     return z3.Then(*[z3.Tactic(n) for n in names])
@@ -384,14 +404,17 @@ def apply_tactic_to_goal(z3, goal, tactic):
     survive in a local frame until process exit, surfacing as
     'Uncollected memory' warnings on debug builds. Drop it explicitly."""
     import sys
+
     r = tactic.apply(goal)
     try:
         n = len(r)
         if n == 0:
             return z3.Goal()
         if n > 1:
-            print(f"[sgrep] warning: tactic produced {n} subgoals; using "
-                  f"subgoal[0]", file=sys.stderr)
+            print(
+                f"[sgrep] warning: tactic produced {n} subgoals; using subgoal[0]",
+                file=sys.stderr,
+            )
         sg = r[0]
         g = z3.Goal()
         for j in range(sg.size()):

@@ -4,11 +4,10 @@ from pathlib import Path
 
 from lemur.nla_diff import compute_metrics, diff
 
-
-SAMPLES = Path(__file__).parent / 'sample_traces'
-NLA_VARMAP = SAMPLES / 'nla_varmap_basic.trace'      # 3 lemmas, 2 unique
-NRA_REPEATS = SAMPLES / 'nra_xform_repeats.trace'    # nra-only, 4 calls, 2 unique
-NRA_BASIC = SAMPLES / 'nra_xform_basic.trace'        # both tags, no real repeats
+SAMPLES = Path(__file__).parent / "sample_traces"
+NLA_VARMAP = SAMPLES / "nla_varmap_basic.trace"  # 3 lemmas, 2 unique
+NRA_REPEATS = SAMPLES / "nra_xform_repeats.trace"  # nra-only, 4 calls, 2 unique
+NRA_BASIC = SAMPLES / "nra_xform_basic.trace"  # both tags, no real repeats
 
 
 def _label_to_row(rows, prefix):
@@ -21,14 +20,14 @@ def _label_to_row(rows, prefix):
 
 def test_compute_metrics_picks_varmap_when_available():
     m = compute_metrics(str(NLA_VARMAP))
-    assert m.xform_source == 'varmap'
+    assert m.xform_source == "varmap"
     assert m.nlsat_calls == 3
     assert len(m.nlsat_fingerprints) == 2  # 2 unique
 
 
 def test_compute_metrics_falls_back_to_nra_when_no_varmap():
     m = compute_metrics(str(NRA_REPEATS))
-    assert m.xform_source == 'nra'
+    assert m.xform_source == "nra"
     assert m.nlsat_calls == 4
     assert len(m.nlsat_fingerprints) == 2
 
@@ -60,7 +59,7 @@ def test_diff_handles_b_only_repeats():
     # NRA_REPEATS has 4 calls, 2 unique.
     # We force varmap on A (which has 0 lemmas) and nra on B by feeding
     # different fixtures.
-    m_a = compute_metrics(str(NRA_BASIC))   # falls back to varmap on its lemmas
+    m_a = compute_metrics(str(NRA_BASIC))  # falls back to varmap on its lemmas
     m_b = compute_metrics(str(NRA_REPEATS))  # nra fallback
     rows = diff(m_a, m_b, top=5)
     fp_row = _label_to_row(rows, "top-fp(1)")

@@ -12,8 +12,8 @@ import json
 import sys
 
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
+from rich.table import Table
 from rich.text import Text
 
 
@@ -37,23 +37,21 @@ class SweepTable:
         self.configs = configs
         self.seeds = seeds
         # results[config_name][seed] = (status, time_s)
-        self.results: dict[str, dict[int, tuple[str, float]]] = {
-            c: {} for c in configs
-        }
+        self.results: dict[str, dict[int, tuple[str, float]]] = {c: {} for c in configs}
 
     def add_result(self, config: str, seed: int, status: str, time_s: float):
         self.results[config][seed] = (status, time_s)
 
     def _status_style(self, status: str) -> str:
-        if status == 'sat':
-            return 'green'
-        elif status == 'unsat':
-            return 'cyan'
-        elif status == 'timeout':
-            return 'red'
-        elif status == 'unknown':
-            return 'yellow'
-        return 'white'
+        if status == "sat":
+            return "green"
+        elif status == "unsat":
+            return "cyan"
+        elif status == "timeout":
+            return "red"
+        elif status == "unknown":
+            return "yellow"
+        return "white"
 
     def _cell(self, status: str, time_s: float) -> Text:
         style = self._status_style(status)
@@ -73,12 +71,17 @@ class SweepTable:
                 if seed in self.results[config]:
                     status, time_s = self.results[config][seed]
                     row.append(self._cell(status, time_s))
-                    if status in ('sat', 'unsat'):
+                    if status in ("sat", "unsat"):
                         solved += 1
                 else:
                     row.append(Text("—", style="dim"))
             total = len(self.seeds)
-            row.append(Text(f"{solved}/{total}", style="bold green" if solved == total else "bold"))
+            row.append(
+                Text(
+                    f"{solved}/{total}",
+                    style="bold green" if solved == total else "bold",
+                )
+            )
             table.add_row(config, *row)
 
         console.print(table)
@@ -100,12 +103,14 @@ class SweepTable:
             for seed in self.seeds:
                 if seed in self.results[config]:
                     status, time_s = self.results[config][seed]
-                    rows.append({
-                        "config": config,
-                        "seed": seed,
-                        "status": status,
-                        "time_s": round(time_s, 3),
-                    })
+                    rows.append(
+                        {
+                            "config": config,
+                            "seed": seed,
+                            "status": status,
+                            "time_s": round(time_s, 3),
+                        }
+                    )
         return json.dumps(rows, indent=2)
 
 
@@ -127,6 +132,7 @@ class StatsOutput:
             for key, value in rows:
                 table.add_row(key, value)
             from rich.text import Text as RichText
+
             panel_title = RichText(title, style="bold")
             console.print(Panel(table, title=panel_title, expand=False))
 
@@ -146,22 +152,25 @@ class StatsOutput:
         return json.dumps(data, indent=2)
 
 
-def output(obj: SweepTable | StatsOutput, fmt: str | None = None,
-           console: Console | None = None):
+def output(
+    obj: SweepTable | StatsOutput,
+    fmt: str | None = None,
+    console: Console | None = None,
+):
     """Render output in the requested format.
 
     fmt: 'rich' (default for TTY), 'plain', 'json'
     """
     if fmt is None:
-        fmt = 'rich' if is_tty() else 'plain'
+        fmt = "rich" if is_tty() else "plain"
 
-    if fmt == 'rich':
+    if fmt == "rich":
         if console is None:
             console = make_console()
         obj.render_rich(console)
-    elif fmt == 'plain':
-        print(obj.to_csv(), end='')
-    elif fmt == 'json':
+    elif fmt == "plain":
+        print(obj.to_csv(), end="")
+    elif fmt == "json":
         print(obj.to_json())
     else:
         raise ValueError(f"Unknown format: {fmt}")

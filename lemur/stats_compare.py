@@ -24,16 +24,15 @@ from rich.table import Table
 
 from lemur.z3_stats import parse_z3_run
 
-
-_FNAME_RE = re.compile(r'^(?P<config>.+)_s(?P<seed>\d+)\.stats\.json$')
+_FNAME_RE = re.compile(r"^(?P<config>.+)_s(?P<seed>\d+)\.stats\.json$")
 
 
 @dataclass
 class StatsComparison:
-    configs: list[str]            # ordered, as discovered
+    configs: list[str]  # ordered, as discovered
     # stat_key -> config -> list of values across seeds
     values: dict[str, dict[str, list[float]]]
-    seed_counts: dict[str, int]   # config -> number of seeds contributing
+    seed_counts: dict[str, int]  # config -> number of seeds contributing
     # config -> per-input result strings ("sat" / "unsat" / "unknown"). Empty
     # for the dir loader (sweep already split result out into the row's
     # status field, not the .stats.json blob).
@@ -50,12 +49,12 @@ def load_stats_dir(path: str) -> StatsComparison:
     seeds_by_config: dict[str, set[int]] = defaultdict(set)
     config_order: list[str] = []
 
-    for f in sorted(p.glob('*.stats.json')):
+    for f in sorted(p.glob("*.stats.json")):
         m = _FNAME_RE.match(f.name)
         if not m:
             continue
-        config = m.group('config')
-        seed = int(m.group('seed'))
+        config = m.group("config")
+        seed = int(m.group("seed"))
         if config not in config_order:
             config_order.append(config)
         try:
@@ -92,7 +91,7 @@ def load_stats_files(specs: list[tuple[str, str]]) -> StatsComparison:
 
     for label, path in specs:
         try:
-            text = Path(path).read_text(errors='replace')
+            text = Path(path).read_text(errors="replace")
         except OSError as e:
             print(f"Warning: skipping {path}: {e}", file=sys.stderr)
             continue
@@ -124,7 +123,7 @@ def _mean(vals: list[float]) -> float | None:
 
 def _fmt(v: float | None) -> str:
     if v is None:
-        return '—'
+        return "—"
     if v == int(v) and abs(v) < 1e12:
         return f"{int(v)}"
     return f"{v:.3f}"
@@ -139,11 +138,11 @@ def _summarize_results(results: list[str]) -> str:
     `[]`               -> `"—"`
     """
     if not results:
-        return '—'
+        return "—"
     if len(set(results)) == 1:
         return results[0]
     counts = Counter(results)
-    return ' '.join(f"{r}({n})" for r, n in counts.most_common())
+    return " ".join(f"{r}({n})" for r, n in counts.most_common())
 
 
 def render_rich(cmp: StatsComparison, console: Console, top: int | None = None) -> None:
@@ -188,10 +187,10 @@ def render_rich(cmp: StatsComparison, console: Console, top: int | None = None) 
         if len(cmp.configs) == 2:
             a, b = means
             if a is None or b is None or a == 0:
-                row.append('—')
+                row.append("—")
             else:
                 pct = (b - a) / abs(a) * 100
-                sign = '+' if pct >= 0 else ''
+                sign = "+" if pct >= 0 else ""
                 row.append(f"{sign}{pct:.1f}%")
         table.add_row(*row)
 
@@ -201,17 +200,20 @@ def render_rich(cmp: StatsComparison, console: Console, top: int | None = None) 
 def to_csv(cmp: StatsComparison, top: int | None = None) -> str:
     import csv
     import io
+
     buf = io.StringIO()
     w = csv.writer(buf)
-    header = ['stat'] + cmp.configs
+    header = ["stat"] + cmp.configs
     if len(cmp.configs) == 2:
-        header.append('diff_pct')
+        header.append("diff_pct")
     w.writerow(header)
 
     if cmp.results:
-        res_row = ['result'] + [_summarize_results(cmp.results.get(c, [])) for c in cmp.configs]
+        res_row = ["result"] + [
+            _summarize_results(cmp.results.get(c, [])) for c in cmp.configs
+        ]
         if len(cmp.configs) == 2:
-            res_row.append('')
+            res_row.append("")
         w.writerow(res_row)
 
     keys = sorted(cmp.values.keys())
@@ -223,11 +225,15 @@ def to_csv(cmp: StatsComparison, top: int | None = None) -> str:
         for c in cmp.configs:
             m = _mean(cmp.values[k].get(c, []))
             means.append(m)
-            row.append('' if m is None else (f"{int(m)}" if m == int(m) and abs(m) < 1e12 else f"{m:.3f}"))
+            row.append(
+                ""
+                if m is None
+                else (f"{int(m)}" if m == int(m) and abs(m) < 1e12 else f"{m:.3f}")
+            )
         if len(cmp.configs) == 2:
             a, b = means
             if a is None or b is None or a == 0:
-                row.append('')
+                row.append("")
             else:
                 row.append(f"{(b - a) / abs(a) * 100:.1f}")
         w.writerow(row)
@@ -239,13 +245,12 @@ def to_json(cmp: StatsComparison, top: int | None = None) -> str:
     if top is not None:
         keys = keys[:top]
     out: dict = {
-        'configs': cmp.configs,
-        'seed_counts': cmp.seed_counts,
-        'stats': {
-            k: {c: _mean(cmp.values[k].get(c, [])) for c in cmp.configs}
-            for k in keys
+        "configs": cmp.configs,
+        "seed_counts": cmp.seed_counts,
+        "stats": {
+            k: {c: _mean(cmp.values[k].get(c, [])) for c in cmp.configs} for k in keys
         },
     }
     if cmp.results:
-        out['results'] = {c: cmp.results.get(c, []) for c in cmp.configs}
+        out["results"] = {c: cmp.results.get(c, []) for c in cmp.configs}
     return json.dumps(out, indent=2)

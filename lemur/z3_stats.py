@@ -16,10 +16,9 @@ sweep.py's process-pool / progress-bar machinery.
 
 import re
 
-
-_STATS_BLOCK_RE = re.compile(r'\(\s*(:[\s\S]+?)\)\s*\Z')
-_STATS_KV_RE = re.compile(r':([\w\-.]+)\s+(\S+)')
-_RESULT_RE = re.compile(r'^(sat|unsat|unknown)\s*$', re.MULTILINE)
+_STATS_BLOCK_RE = re.compile(r"\(\s*(:[\s\S]+?)\)\s*\Z")
+_STATS_KV_RE = re.compile(r":([\w\-.]+)\s+(\S+)")
+_RESULT_RE = re.compile(r"^(sat|unsat|unknown)\s*$", re.MULTILINE)
 
 
 def parse_z3_stats(stdout: str) -> dict | None:
@@ -56,7 +55,7 @@ def parse_z3_run(stdout: str) -> tuple[str | None, dict | None]:
     stats = parse_z3_stats(stdout)
     if stats is not None:
         m = _STATS_BLOCK_RE.search(stdout)
-        head = stdout[:m.start()] if m else stdout
+        head = stdout[: m.start()] if m else stdout
     else:
         head = stdout
     results = _RESULT_RE.findall(head)

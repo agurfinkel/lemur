@@ -76,3 +76,12 @@ tags: `nla_solver`, `nra`, `nlsat_*`. defined in `z3-edge/src/util/trace_tags.de
 4. analyze trace: `lemur stats ./out/default_s3.trace`
 5. list all lemmas: `lemur stats ./out/default_s3.trace --lemma-list -f plain`
 6. inspect specific lemma: `lemur stats ./out/default_s3.trace --lemma-detail 1`
+
+## Before committing
+
+Use Conventional Commits (`type(scope): subject`, scope optional), with a
+header of at most 72 characters; see `.commitlintrc.yml`. CI checks each
+commit in the PR. Use a `style:` commit for formatting-only changes.
+
+Run `uv run ruff check .`, `uv run ruff format --check .`, and `uv run pytest`.
+Use `uv run ruff format .` to format code. CI repeats these checks on PRs.

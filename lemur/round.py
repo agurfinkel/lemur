@@ -31,10 +31,9 @@ from pathlib import Path
 
 from lemur.parsers import parse_trace
 
-
-_DEC_RE = re.compile(r'splitting, lvl:\s*(\d+)')
-_POP_RE = re.compile(r'backtracking:\s*(\d+),\s*new_lvl:\s*(\d+)')
-_AC_RE = re.compile(r'@(\d+)\s+(conflict|lemma)')
+_DEC_RE = re.compile(r"splitting, lvl:\s*(\d+)")
+_POP_RE = re.compile(r"backtracking:\s*(\d+),\s*new_lvl:\s*(\d+)")
+_AC_RE = re.compile(r"@(\d+)\s+(conflict|lemma)")
 
 
 @dataclass
@@ -90,23 +89,23 @@ def parse_round_data(
     # `LemmaAnalyzer` uses — emission_idx here lines up 1:1 with
     # lemma indices in `lemur nla --list`.
     for entry in parse_trace(path):
-        if entry.tag == 'decide':
+        if entry.tag == "decide":
             m = _DEC_RE.search(entry.body)
             if m:
                 current_level = int(m.group(1))
-                counts['DEC'] += 1
+                counts["DEC"] += 1
                 if current_level > max_dec:
                     max_dec = current_level
                 if round_N is not None:
                     round_event_count += 1
                     if current_level > round_max_level:
                         round_max_level = current_level
-        elif entry.tag == 'pop_scope':
+        elif entry.tag == "pop_scope":
             m = _POP_RE.search(entry.body)
             if m:
                 drop = int(m.group(1))
                 target = int(m.group(2))
-                counts['POP'] += 1
+                counts["POP"] += 1
                 if round_N is not None:
                     if target >= round_N:
                         rd.internal_pop_drops.append(drop)
@@ -120,15 +119,15 @@ def parse_round_data(
                         round_max_level = 0
                         round_event_count = 0
                 current_level = target
-        elif entry.tag == 'arith_conflict':
+        elif entry.tag == "arith_conflict":
             m = _AC_RE.search(entry.body)
             if m:
-                counts['AC'] += 1
+                counts["AC"] += 1
                 if round_N is not None:
                     round_event_count += 1
-        elif entry.tag == 'nla_solver' and entry.function == '~lemma_builder':
+        elif entry.tag == "nla_solver" and entry.function == "~lemma_builder":
             rd.n_series.append(current_level)
-            counts['NLA'] += 1
+            counts["NLA"] += 1
             emission_idx = len(rd.n_series)
             if last_pop_below_N is not None:
                 prev_N, post = last_pop_below_N
@@ -143,12 +142,12 @@ def parse_round_data(
                 round_event_count += 1
 
     rd.totals = {
-        'rounds': len(rd.round_starts),
-        'closed_rounds': len(rd.pop_marks),
-        'nla_emissions': counts['NLA'],
-        'decisions': counts['DEC'],
-        'pops': counts['POP'],
-        'arith_conflicts': counts['AC'],
+        "rounds": len(rd.round_starts),
+        "closed_rounds": len(rd.pop_marks),
+        "nla_emissions": counts["NLA"],
+        "decisions": counts["DEC"],
+        "pops": counts["POP"],
+        "arith_conflicts": counts["AC"],
     }
     rd.max_decision_level = max_dec
 
@@ -174,9 +173,10 @@ class RoundLemmaRange:
     means the trace ended mid-round and `lemma_end` is the last lemma
     in the trace.
     """
-    round: int            # 1-based
-    lemma_start: int      # 1-based inclusive
-    lemma_end: int        # 1-based inclusive
+
+    round: int  # 1-based
+    lemma_start: int  # 1-based inclusive
+    lemma_end: int  # 1-based inclusive
     closed: bool
 
 
@@ -190,7 +190,6 @@ def lemma_ranges_per_round(rd: RoundData) -> list[RoundLemmaRange]:
     lemma index pop_marks[i][0] - 1.
     """
     out: list[RoundLemmaRange] = []
-    n = len(rd.round_starts)
     last_lemma = len(rd.n_series)
     for i, (start_idx, _anchor_N) in enumerate(rd.round_starts):
         if i < len(rd.pop_marks):
@@ -204,27 +203,29 @@ def lemma_ranges_per_round(rd: RoundData) -> list[RoundLemmaRange]:
         # no further lemmas — shouldn't occur given our state machine,
         # but guard anyway.)
         if end_idx >= start_idx:
-            out.append(RoundLemmaRange(
-                round=i + 1,
-                lemma_start=start_idx,
-                lemma_end=end_idx,
-                closed=closed,
-            ))
+            out.append(
+                RoundLemmaRange(
+                    round=i + 1,
+                    lemma_start=start_idx,
+                    lemma_end=end_idx,
+                    closed=closed,
+                )
+            )
     return out
 
 
 def quartiles(xs: list[int]) -> dict[str, float | int]:
     """min/q1/median/q3/max/mean for a list of ints. Empty → all 0."""
     if not xs:
-        return {'n': 0, 'min': 0, 'q1': 0, 'median': 0, 'q3': 0, 'max': 0, 'mean': 0.0}
+        return {"n": 0, "min": 0, "q1": 0, "median": 0, "q3": 0, "max": 0, "mean": 0.0}
     s = sorted(xs)
     n = len(s)
     return {
-        'n': n,
-        'min': s[0],
-        'q1': s[n // 4],
-        'median': s[n // 2],
-        'q3': s[3 * n // 4],
-        'max': s[-1],
-        'mean': round(sum(s) / n, 2),
+        "n": n,
+        "min": s[0],
+        "q1": s[n // 4],
+        "median": s[n // 2],
+        "q3": s[3 * n // 4],
+        "max": s[-1],
+        "mean": round(sum(s) / n, 2),
     }

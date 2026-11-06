@@ -3,26 +3,37 @@
 import argparse
 import sys
 
-from lemur.cli import sweep, stats, nla, tally, stats_compare, search
-from lemur.cli import split as split_cli, split_status
-from lemur.cli import sgrep as sgrep_cli
-from lemur.cli import sdiff as sdiff_cli
+from lemur.cli import (
+    agent_help,
+    nla,
+    search,
+    split_status,
+    stats,
+    stats_compare,
+    sweep,
+    tally,
+)
+from lemur.cli import n_over_time as n_over_time_cli
 from lemur.cli import nla_diff as nla_diff_cli
 from lemur.cli import nla_run as nla_run_cli
+from lemur.cli import sdiff as sdiff_cli
+from lemur.cli import sgrep as sgrep_cli
+from lemur.cli import split as split_cli
 from lemur.cli import stats_diff as stats_diff_cli
-from lemur.cli import n_over_time as n_over_time_cli
-from lemur.cli import agent_help
 
 
 def main():
     parser = argparse.ArgumentParser(
-        prog='lemur',
-        description='Z3 trace analysis and debugging toolkit.',
-        epilog='AI agents: use --agent (on any subcommand) for terse usage guide.',
+        prog="lemur",
+        description="Z3 trace analysis and debugging toolkit.",
+        epilog="AI agents: use --agent (on any subcommand) for terse usage guide.",
     )
-    parser.add_argument('--agent', action='store_true',
-                        help='Show agent-friendly usage guide (all subcommands)')
-    sub = parser.add_subparsers(dest='command')
+    parser.add_argument(
+        "--agent",
+        action="store_true",
+        help="Show agent-friendly usage guide (all subcommands)",
+    )
+    sub = parser.add_subparsers(dest="command")
 
     sweep.register(sub)
     stats.register(sub)
@@ -54,5 +65,5 @@ def main():
     args.func(args)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

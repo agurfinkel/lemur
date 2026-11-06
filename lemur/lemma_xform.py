@@ -23,17 +23,15 @@ from __future__ import annotations
 
 import hashlib
 import re
-import statistics
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
-from lemur.nra_parsers import NraCall, XFormReport
+from lemur.nra_parsers import NraCall
 from lemur.parsers import TraceEntry, parse_trace, parse_varmap_line
 
-
-_J_VAR_RE = re.compile(r'\bj\d+\b')
-_R_OR_I_VAR_RE = re.compile(r'\b[RI]\d+\b')
+_J_VAR_RE = re.compile(r"\bj\d+\b")
+_R_OR_I_VAR_RE = re.compile(r"\b[RI]\d+\b")
 
 # --- Coarse ("structural") fingerprint normalization ------------------------
 #
@@ -52,12 +50,12 @@ _R_OR_I_VAR_RE = re.compile(r'\b[RI]\d+\b')
 #      those are stable structural identity, not snapshot data.
 #
 # See ../z3-research/lemur/structural-fingerprint-proposal.md.
-_AUX_ID_RE = re.compile(r'#\d+')
+_AUX_ID_RE = re.compile(r"#\d+")
 _LITERAL_RE = re.compile(
-    r'(?<![A-Za-z\d#_!])'                # no letter/digit/#/_/! before
-    r'-?\d[\d_]*'                        # digit run (with bignum '_' separators)
-    r'(?:\s*/\s*-?\d[\d_]*)?'            # optional rational denominator
-    r'(?![A-Za-z_\d!])'                  # no letter/digit/_/! after
+    r"(?<![A-Za-z\d#_!])"  # no letter/digit/#/_/! before
+    r"-?\d[\d_]*"  # digit run (with bignum '_' separators)
+    r"(?:\s*/\s*-?\d[\d_]*)?"  # optional rational denominator
+    r"(?![A-Za-z_\d!])"  # no letter/digit/_/! after
 )
 # `!` joins z3 enode-occurrence ids (`CANON123!!8`); excluding it keeps
 # the trailing `8` glued to the identifier instead of collapsing to LIT.
@@ -74,11 +72,11 @@ def _coarse_signature(text: str) -> str:
     def _rename(m: re.Match) -> str:
         tok = m.group(0)
         if tok not in seen:
-            seen[tok] = f'#A{len(seen)}'
+            seen[tok] = f"#A{len(seen)}"
         return seen[tok]
 
     text = _AUX_ID_RE.sub(_rename, text)
-    text = _LITERAL_RE.sub('LIT', text)
+    text = _LITERAL_RE.sub("LIT", text)
     return text
 
 
@@ -98,22 +96,20 @@ def _resolve_jvars(expr: str, varmap: dict[str, str]) -> str:
         if cur == prev:
             break
         prev = cur
-        cur = _J_VAR_RE.sub(
-            lambda m: varmap.get(m.group(0), m.group(0)), cur
-        )
+        cur = _J_VAR_RE.sub(lambda m: varmap.get(m.group(0), m.group(0)), cur)
     return cur
 
 
 def _normalize(expr: str) -> str:
     """Collapse whitespace; deterministic single-line form for hashing."""
-    return ' '.join(expr.split())
+    return " ".join(expr.split())
 
 
 def _fingerprint(items: list[str]) -> str:
     h = hashlib.sha1()
     for line in sorted(items):
-        h.update(line.encode('utf-8'))
-        h.update(b'\n')
+        h.update(line.encode("utf-8"))
+        h.update(b"\n")
     return h.hexdigest()[:12]
 
 
@@ -121,16 +117,14 @@ def _extract_varmap(body: str) -> dict[str, str]:
     """Pull the single `varmap:` line out of an entry body, parse it."""
     for line in body.splitlines():
         s = line.strip()
-        if s.startswith('varmap:'):
+        if s.startswith("varmap:"):
             return parse_varmap_line(s)
     return {}
 
 
-_PRECOND_LINE_RE = re.compile(r'^\((?:\d+)\)\s*(.+)$')
+_PRECOND_LINE_RE = re.compile(r"^\((?:\d+)\)\s*(.+)$")
 # `j120 := j70 * j114` — first j-var is the lemma's target.
-_MONOMIAL_DEF_RE = re.compile(
-    r'^(?P<target>j\d+)\s*:=\s*(?P<expr>.+)$'
-)
+_MONOMIAL_DEF_RE = re.compile(r"^(?P<target>j\d+)\s*:=\s*(?P<expr>.+)$")
 
 
 def _extract_lemma_jform(body: str) -> tuple[list[str], str | None]:
@@ -148,8 +142,8 @@ def _extract_lemma_jform(body: str) -> tuple[list[str], str | None]:
         s = line.lstrip()
         if not s:
             continue
-        if s.startswith('==>') or s.startswith('=>'):
-            concl = s.lstrip('=').lstrip('>').strip()
+        if s.startswith("==>") or s.startswith("=>"):
+            concl = s.lstrip("=").lstrip(">").strip()
             saw_concl = True
             continue
         if saw_concl:
@@ -173,15 +167,15 @@ def _extract_lemma_target_var(body: str, conclusion: str | None) -> str | None:
     own tie-breakers, so a target is found whenever the lemma has any
     structural anchor at all.
     """
-    concl_jvars = set(_J_VAR_RE.findall(conclusion or ''))
+    concl_jvars = set(_J_VAR_RE.findall(conclusion or ""))
     monomials: list[tuple[str, bool]] = []  # (target_var, is_in_conclusion)
     for raw in body.splitlines():
         s = raw.lstrip()
-        if not s or s.startswith('==>') or s.startswith('=>'):
+        if not s or s.startswith("==>") or s.startswith("=>"):
             continue
         m = _MONOMIAL_DEF_RE.match(s)
         if m:
-            tgt = m.group('target')
+            tgt = m.group("target")
             monomials.append((tgt, tgt in concl_jvars))
     for tgt, in_concl in monomials:
         if in_concl:
@@ -196,7 +190,9 @@ def _extract_lemma_target_var(body: str, conclusion: str | None) -> str | None:
 
 
 def parse_lemma_xform_calls(
-    trace_path: str | Path, *, coarse: bool = False,
+    trace_path: str | Path,
+    *,
+    coarse: bool = False,
 ) -> list[NraCall]:
     """One NraCall per ~lemma_builder block, with R/I-form fingerprints
     derived from the per-lemma varmap snapshot.
@@ -212,12 +208,14 @@ def parse_lemma_xform_calls(
     Different threshold values and different aux-Bool atom orderings
     on the same monomial target then hash to one shape.
     """
-    entries = [e for e in parse_trace(trace_path) if e.tag == 'nla_solver']
+    entries = [e for e in parse_trace(trace_path) if e.tag == "nla_solver"]
     return _calls_from_entries(entries, coarse=coarse)
 
 
 def _calls_from_entries(
-    entries: list[TraceEntry], *, coarse: bool = False,
+    entries: list[TraceEntry],
+    *,
+    coarse: bool = False,
 ) -> list[NraCall]:
     """Pair lemma_builder entries with varmap-bearing entries in FIFO order.
 
@@ -226,8 +224,8 @@ def _calls_from_entries(
     would drop ~78% of lemmas (467/2175 on the test trace) when in fact
     the counts match 1:1 globally. FIFO pairing recovers all of them.
     """
-    lemmas = [e for e in entries if e.function == '~lemma_builder']
-    varmaps = [e for e in entries if 'varmap:' in e.body]
+    lemmas = [e for e in entries if e.function == "~lemma_builder"]
+    varmaps = [e for e in entries if "varmap:" in e.body]
 
     calls: list[NraCall] = []
     for lemma, vm_entry in zip(lemmas, varmaps):
@@ -248,25 +246,26 @@ def _calls_from_entries(
         vars_set: set[str] = set()
         for line in resolved:
             vars_set.update(_R_OR_I_VAR_RE.findall(line))
-        sorted_vars = tuple(
-            sorted(vars_set, key=lambda v: (v[0], int(v[1:])))
-        )
+        sorted_vars = tuple(sorted(vars_set, key=lambda v: (v[0], int(v[1:]))))
         # The signature used for hashing: in coarse mode each line is
         # passed through _coarse_signature first. `constraints` (the
         # display-side tuple) follows the same transform so the top-
         # repeats representative shows the structural form, which is
         # what makes a coarse repeat actionable.
-        sig_lines = [_coarse_signature(line) for line in resolved] \
-            if coarse else resolved
-        calls.append(NraCall(
-            index=len(calls),
-            constraints=tuple(sorted(sig_lines)),
-            raw_constraints=tuple(resolved),
-            variables=sorted_vars,
-            result=None,
-            fingerprint=_fingerprint(sig_lines),
-            line_number=lemma.line_number,
-        ))
+        sig_lines = (
+            [_coarse_signature(line) for line in resolved] if coarse else resolved
+        )
+        calls.append(
+            NraCall(
+                index=len(calls),
+                constraints=tuple(sorted(sig_lines)),
+                raw_constraints=tuple(resolved),
+                variables=sorted_vars,
+                result=None,
+                fingerprint=_fingerprint(sig_lines),
+                line_number=lemma.line_number,
+            )
+        )
     return calls
 
 
@@ -278,22 +277,25 @@ def _calls_from_entries(
 # diagnostic: "is a small set of monomials swallowing all the lemma volume?"
 # See ../z3-research/lemur/target-only-fingerprint-proposal.md.
 
-NO_TARGET_TEXT = '<no-target>'
+NO_TARGET_TEXT = "<no-target>"
 
 
 @dataclass
 class TargetCall:
     """One ~lemma_builder block reduced to (strategy, target text, fp)."""
+
     index: int
     strategy: str
-    target_var: str | None        # the j-var name, or None
-    target_text: str              # resolved + optionally coarsened; or NO_TARGET_TEXT
-    fingerprint: str              # sha1[:12] over target_text
-    line_number: int              # source-line in trace where lemma starts
+    target_var: str | None  # the j-var name, or None
+    target_text: str  # resolved + optionally coarsened; or NO_TARGET_TEXT
+    fingerprint: str  # sha1[:12] over target_text
+    line_number: int  # source-line in trace where lemma starts
 
 
 def parse_lemma_target_calls(
-    trace_path: str | Path, *, coarse: bool = True,
+    trace_path: str | Path,
+    *,
+    coarse: bool = True,
 ) -> list[TargetCall]:
     """One TargetCall per ~lemma_builder block.
 
@@ -310,15 +312,17 @@ def parse_lemma_target_calls(
     structurally-identical targets actually distinct constants?" cross-
     checks.
     """
-    entries = [e for e in parse_trace(trace_path) if e.tag == 'nla_solver']
+    entries = [e for e in parse_trace(trace_path) if e.tag == "nla_solver"]
     return _target_calls_from_entries(entries, coarse=coarse)
 
 
 def _target_calls_from_entries(
-    entries: list[TraceEntry], *, coarse: bool,
+    entries: list[TraceEntry],
+    *,
+    coarse: bool,
 ) -> list[TargetCall]:
-    lemmas = [e for e in entries if e.function == '~lemma_builder']
-    varmaps = [e for e in entries if 'varmap:' in e.body]
+    lemmas = [e for e in entries if e.function == "~lemma_builder"]
+    varmaps = [e for e in entries if "varmap:" in e.body]
 
     calls: list[TargetCall] = []
     for lemma, vm_entry in zip(lemmas, varmaps):
@@ -343,14 +347,16 @@ def _target_calls_from_entries(
             if coarse:
                 target_text = _coarse_signature(target_text)
 
-        calls.append(TargetCall(
-            index=len(calls),
-            strategy=strategy,
-            target_var=target_var,
-            target_text=target_text,
-            fingerprint=_fingerprint([target_text]),
-            line_number=lemma.line_number,
-        ))
+        calls.append(
+            TargetCall(
+                index=len(calls),
+                strategy=strategy,
+                target_var=target_var,
+                target_text=target_text,
+                fingerprint=_fingerprint([target_text]),
+                line_number=lemma.line_number,
+            )
+        )
     return calls
 
 
@@ -364,9 +370,9 @@ def _strategy_from_body(body: str) -> str:
             continue
         # Trim trailing integer (the LemmaAnalyzer also extracts this
         # as `lemma_id`; for the strategy label proper we want it gone).
-        m = re.match(r'^(.*?)(\s+\d+)?$', s)
+        m = re.match(r"^(.*?)(\s+\d+)?$", s)
         return (m.group(1) if m else s).strip()
-    return ''
+    return ""
 
 
 # --- Target-only report + rendering -----------------------------------------
@@ -375,38 +381,40 @@ def _strategy_from_body(body: str) -> str:
 @dataclass
 class TargetGroup:
     """One target-fingerprint bucket, with a strategy crosstab."""
+
     fingerprint: str
     target_text: str
     count: int
-    strategies: Counter        # name -> emission count
-    representative_line: int   # source-line of one example emission
+    strategies: Counter  # name -> emission count
+    representative_line: int  # source-line of one example emission
 
 
 @dataclass
 class TargetReport:
     total: int
     unique_targets: int
-    groups: list[TargetGroup]      # top-N by count, descending
-    no_target_count: int           # lemmas with no extractable target
+    groups: list[TargetGroup]  # top-N by count, descending
+    no_target_count: int  # lemmas with no extractable target
 
 
 def build_target_report(calls: list[TargetCall], *, top: int = 10) -> TargetReport:
     if not calls:
-        return TargetReport(total=0, unique_targets=0, groups=[],
-                            no_target_count=0)
+        return TargetReport(total=0, unique_targets=0, groups=[], no_target_count=0)
     by_fp: dict[str, list[TargetCall]] = {}
     for c in calls:
         by_fp.setdefault(c.fingerprint, []).append(c)
     groups: list[TargetGroup] = []
     for fp, entries in by_fp.items():
         strategies: Counter = Counter(e.strategy for e in entries)
-        groups.append(TargetGroup(
-            fingerprint=fp,
-            target_text=entries[0].target_text,
-            count=len(entries),
-            strategies=strategies,
-            representative_line=entries[0].line_number,
-        ))
+        groups.append(
+            TargetGroup(
+                fingerprint=fp,
+                target_text=entries[0].target_text,
+                count=len(entries),
+                strategies=strategies,
+                representative_line=entries[0].line_number,
+            )
+        )
     groups.sort(key=lambda g: -g.count)
     no_target = sum(1 for c in calls if c.target_text == NO_TARGET_TEXT)
     return TargetReport(
@@ -426,7 +434,7 @@ def _format_strategy_crosstab(strategies: Counter, *, max_keys: int = 4) -> str:
     parts = [f"{name}:{n}" for name, n in head]
     if rest:
         parts.append(f"+{sum(n for _, n in rest)} more")
-    return '{' + ', '.join(parts) + '}'
+    return "{" + ", ".join(parts) + "}"
 
 
 def render_target_plain(report: TargetReport, *, show: bool = True) -> str:
@@ -439,10 +447,9 @@ def render_target_plain(report: TargetReport, *, show: bool = True) -> str:
         f"{'unique target monomials:':<{label_w}}  {report.unique_targets}  ({pct_unique:.1f}%)",
     ]
     if report.no_target_count:
-        lines.append(f"{'lemmas without target:':<{label_w}}  "
-                     f"{report.no_target_count}")
+        lines.append(f"{'lemmas without target:':<{label_w}}  {report.no_target_count}")
     if not report.groups:
-        return '\n'.join(lines) + '\n'
+        return "\n".join(lines) + "\n"
 
     covered = sum(g.count for g in report.groups)
     pct_top = 100.0 * covered / report.total
@@ -451,15 +458,16 @@ def render_target_plain(report: TargetReport, *, show: bool = True) -> str:
     for g in report.groups:
         share = 100.0 * g.count / report.total
         crosstab = _format_strategy_crosstab(g.strategies)
-        lines.append(f"  count={g.count}  ({share:.1f}%)  "
-                     f"strategies={crosstab}  fp={g.fingerprint}")
+        lines.append(
+            f"  count={g.count}  ({share:.1f}%)  "
+            f"strategies={crosstab}  fp={g.fingerprint}"
+        )
         if show:
             lines.append(f"      target: {g.target_text}")
-    return '\n'.join(lines) + '\n'
+    return "\n".join(lines) + "\n"
 
 
-def render_target_rich(report: TargetReport, console, *,
-                       show: bool = True) -> None:
+def render_target_rich(report: TargetReport, console, *, show: bool = True) -> None:
     from rich.panel import Panel
     from rich.table import Table
     from rich.text import Text
@@ -473,39 +481,48 @@ def render_target_rich(report: TargetReport, console, *,
     overview.add_column("Key", style="bold")
     overview.add_column("Value")
     overview.add_row("lemmas (~lemma_builder)", str(report.total))
-    overview.add_row("unique target monomials",
-                     f"{report.unique_targets}  ({pct_unique:.1f}%)")
+    overview.add_row(
+        "unique target monomials", f"{report.unique_targets}  ({pct_unique:.1f}%)"
+    )
     if report.no_target_count:
         overview.add_row("lemmas without target", str(report.no_target_count))
-    console.print(Panel(overview,
-                        title=Text("nla --x-form --target-only", style="bold"),
-                        expand=False))
+    console.print(
+        Panel(
+            overview,
+            title=Text("nla --x-form --target-only", style="bold"),
+            expand=False,
+        )
+    )
 
     if not report.groups:
         return
     covered = sum(g.count for g in report.groups)
     pct_top = 100.0 * covered / report.total
-    t = Table(title=f"top {len(report.groups)} targets "
-                    f"({pct_top:.1f}% of emissions)", pad_edge=True)
+    t = Table(
+        title=f"top {len(report.groups)} targets ({pct_top:.1f}% of emissions)",
+        pad_edge=True,
+    )
     t.add_column("count", justify="right", style="bold")
     t.add_column("share", justify="right")
     t.add_column("strategies", overflow="fold")
     t.add_column("fp", style="dim")
     for g in report.groups:
         share = f"{100.0 * g.count / report.total:.1f}%"
-        t.add_row(str(g.count), share,
-                  _format_strategy_crosstab(g.strategies),
-                  g.fingerprint)
+        t.add_row(
+            str(g.count), share, _format_strategy_crosstab(g.strategies), g.fingerprint
+        )
     console.print(t)
     if show:
         for g in report.groups:
-            console.print(f"[bold]fp={g.fingerprint}[/bold]  "
-                          f"[dim](count={g.count})[/dim]")
+            console.print(
+                f"[bold]fp={g.fingerprint}[/bold]  [dim](count={g.count})[/dim]"
+            )
             console.print(f"    {g.target_text}", soft_wrap=True)
 
 
 def render_target_json(report: TargetReport, *, show: bool = True) -> str:
     import json
+
     body: dict = {
         "lemmas": report.total,
         "unique_targets": report.unique_targets,
@@ -528,7 +545,9 @@ def render_target_json(report: TargetReport, *, show: bool = True) -> str:
 
 
 def parse_xform_calls(
-    trace_path: str | Path, *, prefer: str = 'auto',
+    trace_path: str | Path,
+    *,
+    prefer: str = "auto",
     nra_trace_path: str | Path | None = None,
     coarse: bool = False,
 ) -> tuple[list[NraCall], str]:
@@ -549,15 +568,15 @@ def parse_xform_calls(
     """
     from lemur.nra_parsers import parse_nra_calls
 
-    if prefer == 'varmap':
-        return parse_lemma_xform_calls(trace_path, coarse=coarse), 'varmap'
-    if prefer == 'nra':
+    if prefer == "varmap":
+        return parse_lemma_xform_calls(trace_path, coarse=coarse), "varmap"
+    if prefer == "nra":
         src = nra_trace_path if nra_trace_path else trace_path
-        return parse_nra_calls(src, coarse=coarse), 'nra'
+        return parse_nra_calls(src, coarse=coarse), "nra"
 
     # auto
     calls = parse_lemma_xform_calls(trace_path, coarse=coarse)
     if calls:
-        return calls, 'varmap'
+        return calls, "varmap"
     src = nra_trace_path if nra_trace_path else trace_path
-    return parse_nra_calls(src, coarse=coarse), 'nra'
+    return parse_nra_calls(src, coarse=coarse), "nra"

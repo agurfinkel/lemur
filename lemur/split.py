@@ -33,7 +33,6 @@ import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-
 LEMUR_VERSION = "0.1.0"
 PLAN_VERSION = 1
 
@@ -45,6 +44,7 @@ class SplitError(RuntimeError):
 def _import_z3():
     try:
         import z3
+
         return z3
     except ImportError:
         raise SystemExit(
@@ -61,26 +61,26 @@ class Candidate:
     name: str
     score: float
     reduces_to_false_on: str | None  # "true" | "false" | None
-    probe_ms: dict[str, float]       # {"true": ms, "false": ms}
+    probe_ms: dict[str, float]  # {"true": ms, "false": ms}
 
 
 @dataclass
 class LeafSpec:
-    valuation: dict[str, bool]       # {"BLK__25": true, "TB0": false, ...}
-    file: str | None                 # leaf_T_F_T.smt2, None if pruned or plan_only
+    valuation: dict[str, bool]  # {"BLK__25": true, "TB0": false, ...}
+    file: str | None  # leaf_T_F_T.smt2, None if pruned or plan_only
     pruned: bool
     reason: str | None
 
 
 @dataclass
 class Plan:
-    source: str                      # basename of the source file as copied in
-    source_abs: str                  # absolute path at emission time
+    source: str  # basename of the source file as copied in
+    source_abs: str  # absolute path at emission time
     split_predicates: list[Candidate]
     leaves: list[LeafSpec]
     version: int = PLAN_VERSION
     lemur_version: str = LEMUR_VERSION
-    results: dict | None = None      # reserved for Phase 2 sweep annotation
+    results: dict | None = None  # reserved for Phase 2 sweep annotation
     implied_units: dict[str, bool] = field(default_factory=dict)
     # ^ Booleans the formula already forces, discovered during candidate
     #   scoring (one-sided collapse). Recorded so downstream tools can see
@@ -96,7 +96,7 @@ class _Metrics:
     num_ites: int = 0
     num_divs: int = 0
     num_mods: int = 0
-    num_nla_ite_terms: int = 0   # (div|mod|*) with at least one ITE child
+    num_nla_ite_terms: int = 0  # (div|mod|*) with at least one ITE child
     arith_max_deg: int = 0
     is_qflia: bool = False
 
@@ -150,17 +150,17 @@ def _measure_apply_result(z3, result, probes: dict) -> _Metrics:
     for i in range(n):
         sg = result[i]
         try:
-            m.num_exprs += int(probes['num-exprs'](sg))
+            m.num_exprs += int(probes["num-exprs"](sg))
         except Exception:
             pass
         try:
-            deg = int(probes['arith-max-deg'](sg))
+            deg = int(probes["arith-max-deg"](sg))
             if deg > m.arith_max_deg:
                 m.arith_max_deg = deg
         except Exception:
             pass
         try:
-            m.is_qflia = m.is_qflia or bool(probes['is-qflia'](sg))
+            m.is_qflia = m.is_qflia or bool(probes["is-qflia"](sg))
         except Exception:
             pass
         _walk_subgoal(z3, sg, seen, counters)
@@ -222,10 +222,13 @@ def _collect_ite_guards(z3, exprs):
         if z3.is_app(e):
             if e.decl().kind() == z3.Z3_OP_ITE and e.num_args() == 3:
                 guard, then_br, else_br = e.arg(0), e.arg(1), e.arg(2)
-                if (z3.is_const(guard)
-                        and guard.sort().kind() == z3.Z3_BOOL_SORT
-                        and not z3.is_true(guard) and not z3.is_false(guard)
-                        and then_br.get_id() != else_br.get_id()):
+                if (
+                    z3.is_const(guard)
+                    and guard.sort().kind() == z3.Z3_BOOL_SORT
+                    and not z3.is_true(guard)
+                    and not z3.is_false(guard)
+                    and then_br.get_id() != else_br.get_id()
+                ):
                     names.add(guard.decl().name())
             for i in range(e.num_args()):
                 stack.append(e.arg(i))
@@ -243,21 +246,28 @@ def _collect_fixed_bools(z3, goal) -> dict[str, bool]:
     fixed: dict[str, bool] = {}
     for i in range(goal.size()):
         e = goal[i]
-        if (z3.is_const(e)
-                and e.sort().kind() == z3.Z3_BOOL_SORT
-                and not z3.is_true(e) and not z3.is_false(e)):
+        if (
+            z3.is_const(e)
+            and e.sort().kind() == z3.Z3_BOOL_SORT
+            and not z3.is_true(e)
+            and not z3.is_false(e)
+        ):
             fixed[e.decl().name()] = True
         elif z3.is_not(e):
             inner = e.arg(0)
-            if (z3.is_const(inner)
-                    and inner.sort().kind() == z3.Z3_BOOL_SORT
-                    and not z3.is_true(inner) and not z3.is_false(inner)):
+            if (
+                z3.is_const(inner)
+                and inner.sort().kind() == z3.Z3_BOOL_SORT
+                and not z3.is_true(inner)
+                and not z3.is_false(inner)
+            ):
                 fixed[inner.decl().name()] = False
     return fixed
 
 
-def _enumerate_candidates(z3, goal, name_pattern: str,
-                          restrict_pattern: str | None = None) -> list[str]:
+def _enumerate_candidates(
+    z3, goal, name_pattern: str, restrict_pattern: str | None = None
+) -> list[str]:
     """Return an ordered list of Bool candidate names.
 
     `name_pattern` classifies reachability-style names so they sort ahead of
@@ -292,17 +302,25 @@ def _enumerate_candidates(z3, goal, name_pattern: str,
 def _simplify_tactic(z3, timeout_s: float):
     """Build the standard simplification tactic with a per-apply timeout."""
     t = z3.Then(
-        z3.Tactic('simplify'),
-        z3.Tactic('propagate-values'),
-        z3.Tactic('solve-eqs'),
-        z3.Tactic('elim-uncnstr'),
+        z3.Tactic("simplify"),
+        z3.Tactic("propagate-values"),
+        z3.Tactic("solve-eqs"),
+        z3.Tactic("elim-uncnstr"),
     )
     return z3.TryFor(t, int(timeout_s * 1000))
 
 
-def _score_with_assumption(z3, goal, name: str, value: bool, tactic,
-                           base_metrics: _Metrics, probes: dict,
-                           *, nla_ite_weight: float = 5.0):
+def _score_with_assumption(
+    z3,
+    goal,
+    name: str,
+    value: bool,
+    tactic,
+    base_metrics: _Metrics,
+    probes: dict,
+    *,
+    nla_ite_weight: float = 5.0,
+):
     """Clone `goal`, add `C=value`, apply `tactic`, compute the gain score.
 
     Returns (gain: float, collapsed: bool, elapsed_ms: float). The
@@ -328,7 +346,11 @@ def _score_with_assumption(z3, goal, name: str, value: bool, tactic,
         # Explicit release — these hold native z3 refs we don't need anymore.
         del r
         del g2
-    return _gain(base_metrics, leaf_metrics, nla_ite_weight=nla_ite_weight), False, elapsed_ms
+    return (
+        _gain(base_metrics, leaf_metrics, nla_ite_weight=nla_ite_weight),
+        False,
+        elapsed_ms,
+    )
 
 
 def _apply_measure(z3, goal, tactic, probes: dict) -> _Metrics:
@@ -342,15 +364,15 @@ def _apply_measure(z3, goal, tactic, probes: dict) -> _Metrics:
         seen: set = set()
         counters = [0, 0, 0]
         try:
-            m.num_exprs = int(probes['num-exprs'](goal))
+            m.num_exprs = int(probes["num-exprs"](goal))
         except Exception:
             pass
         try:
-            m.arith_max_deg = int(probes['arith-max-deg'](goal))
+            m.arith_max_deg = int(probes["arith-max-deg"](goal))
         except Exception:
             pass
         try:
-            m.is_qflia = bool(probes['is-qflia'](goal))
+            m.is_qflia = bool(probes["is-qflia"](goal))
         except Exception:
             pass
         _walk_subgoal(z3, goal, seen, counters)
@@ -373,35 +395,35 @@ def _presimplify(z3, goal, tactic):
     on z3 exception, fall back to the original goal. `status` carries
     counters/flags for the caller to log."""
     status = {
-        'asserts_in': goal.size(),
-        'asserts_out': goal.size(),
-        'subgoals': 1,
-        'fallback': False,
-        'reason': None,
-        'elapsed_ms': 0.0,
+        "asserts_in": goal.size(),
+        "asserts_out": goal.size(),
+        "subgoals": 1,
+        "fallback": False,
+        "reason": None,
+        "elapsed_ms": 0.0,
     }
     t0 = time.monotonic()
     try:
         r = tactic.apply(goal)
     except z3.Z3Exception as e:
-        status['fallback'] = True
-        status['reason'] = f"tactic exception: {e}"
-        status['elapsed_ms'] = (time.monotonic() - t0) * 1000
+        status["fallback"] = True
+        status["reason"] = f"tactic exception: {e}"
+        status["elapsed_ms"] = (time.monotonic() - t0) * 1000
         return goal, status
     try:
         n_sub = len(r)
-        status['subgoals'] = n_sub
+        status["subgoals"] = n_sub
         if n_sub != 1:
-            status['fallback'] = True
-            status['reason'] = f"{n_sub} subgoals"
-            status['elapsed_ms'] = (time.monotonic() - t0) * 1000
+            status["fallback"] = True
+            status["reason"] = f"{n_sub} subgoals"
+            status["elapsed_ms"] = (time.monotonic() - t0) * 1000
             return goal, status
         sg = r[0]
         new_goal = z3.Goal()
         for j in range(sg.size()):
             new_goal.add(sg[j])
-        status['asserts_out'] = new_goal.size()
-        status['elapsed_ms'] = (time.monotonic() - t0) * 1000
+        status["asserts_out"] = new_goal.size()
+        status["elapsed_ms"] = (time.monotonic() - t0) * 1000
         return new_goal, status
     finally:
         del r
@@ -440,7 +462,7 @@ def build_plan(
     max_leaves: int = 32,
     threshold: float = 10.0,
     probe_timeout: float = 5.0,
-    name_pattern: str = r'BLK__\d+',
+    name_pattern: str = r"BLK__\d+",
     restrict_pattern: str | None = None,
     nla_ite_weight: float = 5.0,
     log=None,
@@ -474,14 +496,15 @@ def build_plan(
     for a in asserts:
         goal.add(a)
     del asserts
-    timings['parse'] = time.monotonic() - t0
-    if log: log(f"parse: {timings['parse']*1000:.0f}ms ({goal.size()} asserts)")
+    timings["parse"] = time.monotonic() - t0
+    if log:
+        log(f"parse: {timings['parse'] * 1000:.0f}ms ({goal.size()} asserts)")
 
     tactic = _simplify_tactic(z3, probe_timeout)
     probes = {
-        'num-exprs': z3.Probe('num-exprs'),
-        'arith-max-deg': z3.Probe('arith-max-deg'),
-        'is-qflia': z3.Probe('is-qflia'),
+        "num-exprs": z3.Probe("num-exprs"),
+        "arith-max-deg": z3.Probe("arith-max-deg"),
+        "is-qflia": z3.Probe("is-qflia"),
     }
 
     # Pre-simplify the goal once. propagate-values + solve-eqs in the chain
@@ -491,23 +514,30 @@ def build_plan(
     # tighter than what we want here.
     presimplify_tactic = _simplify_tactic(z3, probe_timeout * 4)
     goal, ps = _presimplify(z3, goal, presimplify_tactic)
-    timings['presimplify'] = ps['elapsed_ms'] / 1000
+    timings["presimplify"] = ps["elapsed_ms"] / 1000
     if log:
-        if ps['fallback']:
-            log(f"presimplify: fallback to original goal ({ps['reason']}, "
-                f"{ps['elapsed_ms']:.0f}ms)")
+        if ps["fallback"]:
+            log(
+                f"presimplify: fallback to original goal ({ps['reason']}, "
+                f"{ps['elapsed_ms']:.0f}ms)"
+            )
         else:
-            log(f"presimplify: {ps['asserts_in']}→{ps['asserts_out']} asserts "
-                f"({ps['elapsed_ms']:.0f}ms)")
+            log(
+                f"presimplify: {ps['asserts_in']}→{ps['asserts_out']} asserts "
+                f"({ps['elapsed_ms']:.0f}ms)"
+            )
     del presimplify_tactic
 
     t0 = time.monotonic()
     current_goal = goal
     base_metrics = _apply_measure(z3, current_goal, tactic, probes)
-    timings['base-simplify'] = time.monotonic() - t0
-    if log: log(f"base-simplify: {timings['base-simplify']*1000:.0f}ms "
-                f"(exprs={base_metrics.num_exprs} ites={base_metrics.num_ites} "
-                f"deg={base_metrics.arith_max_deg})")
+    timings["base-simplify"] = time.monotonic() - t0
+    if log:
+        log(
+            f"base-simplify: {timings['base-simplify'] * 1000:.0f}ms "
+            f"(exprs={base_metrics.num_exprs} ites={base_metrics.num_ites} "
+            f"deg={base_metrics.arith_max_deg})"
+        )
 
     plan_cands: list[Candidate] = []
     picked_names: set[str] = set()
@@ -518,13 +548,19 @@ def build_plan(
     picks_made = 0
     while picks_made < max_splits:
         t_iter = time.monotonic()
-        names = [n for n in _enumerate_candidates(
-                    z3, current_goal, name_pattern, restrict_pattern)
-                 if n not in picked_names]
+        names = [
+            n
+            for n in _enumerate_candidates(
+                z3, current_goal, name_pattern, restrict_pattern
+            )
+            if n not in picked_names
+        ]
         if not names:
-            if log: log(f"iter {picks_made+1}: no candidates, stopping")
+            if log:
+                log(f"iter {picks_made + 1}: no candidates, stopping")
             break
-        if log: log(f"iter {picks_made+1}: scoring {len(names)} candidates ...")
+        if log:
+            log(f"iter {picks_made + 1}: scoring {len(names)} candidates ...")
 
         # Bucket each candidate as either an implication to harvest (one
         # side collapses) or a productive split (both sides alive).
@@ -534,11 +570,25 @@ def build_plan(
 
         for n in names:
             gain_t, c_t, ms_t = _score_with_assumption(
-                z3, current_goal, n, True, tactic, base_metrics, probes,
-                nla_ite_weight=nla_ite_weight)
+                z3,
+                current_goal,
+                n,
+                True,
+                tactic,
+                base_metrics,
+                probes,
+                nla_ite_weight=nla_ite_weight,
+            )
             gain_f, c_f, ms_f = _score_with_assumption(
-                z3, current_goal, n, False, tactic, base_metrics, probes,
-                nla_ite_weight=nla_ite_weight)
+                z3,
+                current_goal,
+                n,
+                False,
+                tactic,
+                base_metrics,
+                probes,
+                nla_ite_weight=nla_ite_weight,
+            )
 
             if c_t and c_f:
                 # Both branches contradictory — the conjunction so far is
@@ -550,16 +600,21 @@ def build_plan(
                 picked_names.add(n)
                 continue
             if c_f:
-                harvested.append((n, True))   # n=True is forced
+                harvested.append((n, True))  # n=True is forced
                 picked_names.add(n)
                 continue
 
             # Both branches alive — genuine split candidate.
             score = min(gain_t, gain_f)
             harder_true = gain_t < gain_f
-            productive.append((n, score,
-                               {'true': round(ms_t, 1), 'false': round(ms_f, 1)},
-                               harder_true))
+            productive.append(
+                (
+                    n,
+                    score,
+                    {"true": round(ms_t, 1), "false": round(ms_f, 1)},
+                    harder_true,
+                )
+            )
 
         # If any implications were discovered, fold them in and re-enumerate
         # without consuming a max_splits slot. The re-enumeration may surface
@@ -567,8 +622,10 @@ def build_plan(
         if harvested:
             if log:
                 for n, v in harvested:
-                    log(f"iter {picks_made+1}: harvested {n}={str(v).lower()} "
-                        f"(one-sided collapse)")
+                    log(
+                        f"iter {picks_made + 1}: harvested {n}={str(v).lower()} "
+                        f"(one-sided collapse)"
+                    )
             for n, v in harvested:
                 implied_units[n] = v
             next_goal = z3.Goal()
@@ -585,7 +642,8 @@ def build_plan(
             continue
 
         if not productive:
-            if log: log(f"iter {picks_made+1}: no productive candidates, stopping")
+            if log:
+                log(f"iter {picks_made + 1}: no productive candidates, stopping")
             break
 
         # Sort by score desc; tiebreak by name for determinism.
@@ -593,22 +651,29 @@ def build_plan(
         best_name, best_score, best_ms, best_harder = productive[0]
 
         if best_score < threshold:
-            if log: log(f"iter {picks_made+1}: best score {best_score:.1f} < "
-                        f"threshold {threshold}, stopping")
+            if log:
+                log(
+                    f"iter {picks_made + 1}: best score {best_score:.1f} < "
+                    f"threshold {threshold}, stopping"
+                )
             break
 
-        plan_cands.append(Candidate(
-            name=best_name,
-            score=round(best_score, 3),
-            reduces_to_false_on=None,
-            probe_ms=best_ms,
-        ))
+        plan_cands.append(
+            Candidate(
+                name=best_name,
+                score=round(best_score, 3),
+                reduces_to_false_on=None,
+                probe_ms=best_ms,
+            )
+        )
         picked_names.add(best_name)
         picks_made += 1
 
         if log:
-            log(f"iter {picks_made}: picked {best_name} (score {best_score:.1f}) "
-                f"in {(time.monotonic()-t_iter)*1000:.0f}ms")
+            log(
+                f"iter {picks_made}: picked {best_name} (score {best_score:.1f}) "
+                f"in {(time.monotonic() - t_iter) * 1000:.0f}ms"
+            )
 
         del productive
         del harvested
@@ -624,12 +689,12 @@ def build_plan(
         current_goal = next_goal
         del next_goal
         base_metrics = _apply_measure(z3, current_goal, tactic, probes)
-    timings['greedy'] = time.monotonic() - greedy_t0
+    timings["greedy"] = time.monotonic() - greedy_t0
 
     # --- Build leaf manifest (2^k valuations over the chosen plan) ---
     t0 = time.monotonic()
     leaves = _build_leaf_specs(z3, goal, plan_cands, tactic, log=log)
-    timings['leaves'] = time.monotonic() - t0
+    timings["leaves"] = time.monotonic() - t0
 
     plan = Plan(
         source=Path(src_path).name,
@@ -641,7 +706,7 @@ def build_plan(
 
     if log:
         total_ms = sum(timings.values()) * 1000
-        parts = "  ".join(f"{k}={v*1000:.0f}ms" for k, v in timings.items())
+        parts = "  ".join(f"{k}={v * 1000:.0f}ms" for k, v in timings.items())
         log(f"done: total={total_ms:.0f}ms  ({parts})")
 
     # Explicitly release z3 native refs before z3's atexit handler fires.
@@ -660,8 +725,9 @@ def build_plan(
     return plan
 
 
-def _build_leaf_specs(z3, original_goal, plan_cands: list[Candidate], tactic,
-                      *, log=None) -> list[LeafSpec]:
+def _build_leaf_specs(
+    z3, original_goal, plan_cands: list[Candidate], tactic, *, log=None
+) -> list[LeafSpec]:
     """For each valuation tuple, detect pruning. Emit LeafSpec list.
 
     Optimization: if a picked predicate P is known to reduce the goal to
@@ -679,9 +745,9 @@ def _build_leaf_specs(z3, original_goal, plan_cands: list[Candidate], tactic,
     # valuation matching any such condition is doomed.
     collapse_on: list[bool | None] = []
     for cand in plan_cands:
-        if cand.reduces_to_false_on == 'true':
+        if cand.reduces_to_false_on == "true":
             collapse_on.append(True)
-        elif cand.reduces_to_false_on == 'false':
+        elif cand.reduces_to_false_on == "false":
             collapse_on.append(False)
         else:
             collapse_on.append(None)
@@ -695,13 +761,13 @@ def _build_leaf_specs(z3, original_goal, plan_cands: list[Candidate], tactic,
         for i, cand in enumerate(plan_cands):
             v = bool(bits & (1 << i))
             valuation[cand.name] = v
-            label_parts.append('T' if v else 'F')
-        label = '_'.join(label_parts)
+            label_parts.append("T" if v else "F")
+        label = "_".join(label_parts)
 
         # Fast path: any predicate known to collapse on `v` dooms this leaf.
         pruned = False
         for i, c_on in enumerate(collapse_on):
-            if c_on is not None and label_parts[i] == ('T' if c_on else 'F'):
+            if c_on is not None and label_parts[i] == ("T" if c_on else "F"):
                 pruned = True
                 skipped += 1
                 break
@@ -712,16 +778,20 @@ def _build_leaf_specs(z3, original_goal, plan_cands: list[Candidate], tactic,
             if tactic_calls % 8 == 0:
                 gc.collect()
 
-        specs.append(LeafSpec(
-            valuation=valuation,
-            file=None if pruned else f"leaf_{label}.smt2",
-            pruned=pruned,
-            reason="reduces to false" if pruned else None,
-        ))
+        specs.append(
+            LeafSpec(
+                valuation=valuation,
+                file=None if pruned else f"leaf_{label}.smt2",
+                pruned=pruned,
+                reason="reduces to false" if pruned else None,
+            )
+        )
 
     if log:
-        log(f"leaves: {1 << k} enumerated; {skipped} pruned by "
-            f"predicate-collapse fast-path, {tactic_calls} tactic checks ran")
+        log(
+            f"leaves: {1 << k} enumerated; {skipped} pruned by "
+            f"predicate-collapse fast-path, {tactic_calls} tactic checks ran"
+        )
 
     return specs
 
@@ -729,7 +799,9 @@ def _build_leaf_specs(z3, original_goal, plan_cands: list[Candidate], tactic,
 # --- Emission ----------------------------------------------------------------
 
 
-def emit_leaves(plan: Plan, src_path: str, out_dir: str, plan_only: bool = False) -> None:
+def emit_leaves(
+    plan: Plan, src_path: str, out_dir: str, plan_only: bool = False
+) -> None:
     """Copy source, write plan.json, emit non-pruned leaves as SMT2 files."""
     from lemur.smt_inject import make_split_smt
 
@@ -755,10 +827,10 @@ def emit_leaves(plan: Plan, src_path: str, out_dir: str, plan_only: bool = False
                     injection_lines.append(f"(assert {cand.name})")
                 else:
                     injection_lines.append(f"(assert (not {cand.name}))")
-            injection = '\n'.join(injection_lines)
+            injection = "\n".join(injection_lines)
             make_split_smt(src_path, injection, str(out / leaf.file))
 
-    (out / 'plan.json').write_text(_plan_to_json(plan))
+    (out / "plan.json").write_text(_plan_to_json(plan))
 
 
 # --- plan.json (de)serialization --------------------------------------------
@@ -771,7 +843,7 @@ def _plan_to_json(plan: Plan) -> str:
         "source": plan.source,
         "source_abs": plan.source_abs,
         "split_predicates": [asdict(c) for c in plan.split_predicates],
-        "leaves": [asdict(l) for l in plan.leaves],
+        "leaves": [asdict(leaf) for leaf in plan.leaves],
         "results": plan.results,
         "implied_units": plan.implied_units,
     }
@@ -782,7 +854,7 @@ def read_plan(path_or_dir: str) -> Plan:
     """Read a plan.json from a directory or a direct file path."""
     p = Path(path_or_dir)
     if p.is_dir():
-        p = p / 'plan.json'
+        p = p / "plan.json"
     if not p.exists():
         raise SplitError(f"plan.json not found at {p}")
     try:
@@ -791,21 +863,21 @@ def read_plan(path_or_dir: str) -> Plan:
         raise SplitError(f"cannot read plan.json at {p}: {e}") from e
     if not isinstance(d, dict):
         raise SplitError(f"{p}: plan.json root is not an object")
-    ver = d.get('version')
+    ver = d.get("version")
     if ver is not None and int(ver) > PLAN_VERSION:
         raise SplitError(
             f"{p}: plan.json version {ver} is newer than this lemur supports "
             f"(max {PLAN_VERSION}). Upgrade lemur."
         )
-    cands = [Candidate(**c) for c in d.get('split_predicates', [])]
-    leaves = [LeafSpec(**l) for l in d.get('leaves', [])]
+    cands = [Candidate(**c) for c in d.get("split_predicates", [])]
+    leaves = [LeafSpec(**leaf) for leaf in d.get("leaves", [])]
     return Plan(
-        source=d.get('source', ''),
-        source_abs=d.get('source_abs', ''),
+        source=d.get("source", ""),
+        source_abs=d.get("source_abs", ""),
         split_predicates=cands,
         leaves=leaves,
-        version=d.get('version', PLAN_VERSION),
-        lemur_version=d.get('lemur_version', LEMUR_VERSION),
-        results=d.get('results'),
-        implied_units=d.get('implied_units') or {},
+        version=d.get("version", PLAN_VERSION),
+        lemur_version=d.get("lemur_version", LEMUR_VERSION),
+        results=d.get("results"),
+        implied_units=d.get("implied_units") or {},
     )
